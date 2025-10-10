@@ -1,0 +1,50 @@
+# SAFE Conservative Attitude Controller Gains
+# Based on control theory principles for cascaded loops
+# These should be stable but may be slow
+
+attitude:
+  roll:
+    kp: 0.5      # Conservative - half of auto-tuned value
+    ki: 0.1      # Small integral to prevent windup
+    kd: 0.3      # High damping to prevent oscillations
+    i_limit: 5.0  # Reduced limit
+
+  pitch:
+    kp: 0.3      # Very conservative
+    ki: 0.05     # Very small integral
+    kd: 0.4      # High damping
+    i_limit: 5.0
+
+  yaw:
+    kp: 0.1
+    ki: 0.0
+    kd: 0.0
+    i_limit: 5.0
+
+# Rate controller gains (keep existing - these seem OK)
+rate:
+  roll:
+    kp: 0.03
+    ki: 0.005
+    kd: 0.0
+    i_limit: 0.3
+
+  pitch:
+    kp: 0.005
+    ki: 0.0
+    kd: 0.0
+    i_limit: 0.3
+
+  yaw:
+    kp: 0.001
+    ki: 0.0
+    kd: 0.0
+    i_limit: 0.2
+
+# Control limits
+limits:
+  max_roll_deg: 60.0
+  max_pitch_deg: 60.0
+  max_roll_rate_deg: 200.0
+  max_pitch_rate_deg: 200.0
+  max_yaw_rate_deg: 20.0

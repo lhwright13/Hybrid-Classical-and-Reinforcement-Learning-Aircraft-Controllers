@@ -1,0 +1,52 @@
+# Configuration for RC plane simulation
+
+aircraft:
+  type: "rc_plane"  # rc_plane, cessna, or custom
+
+  # Physics simulation parameters
+  dt_physics: 0.001  # Physics timestep (1ms for stability)
+  dt_control: 0.01   # Control loop rate (100 Hz)
+
+# Initial conditions
+initial_state:
+  altitude: 100.0     # meters (positive up)
+  airspeed: 20.0      # m/s
+  position: [0.0, 0.0, -100.0]  # NED frame [north, east, down]
+  velocity: [20.0, 0.0, 0.0]    # Body frame [u, v, w]
+  attitude: [0.0, 0.0, 0.0]     # Euler angles [roll, pitch, yaw] (radians)
+  angular_rate: [0.0, 0.0, 0.0] # Body rates [p, q, r] (rad/s)
+
+# Sensor configuration
+sensor:
+  type: "perfect"  # perfect, noisy, or hardware
+
+  # Noise parameters (only used if type=noisy)
+  noise:
+    enabled: false
+    imu_gyro_stddev: 0.01      # rad/s
+    imu_accel_stddev: 0.1      # m/s²
+    gps_position_stddev: 1.0   # m
+    gps_velocity_stddev: 0.1   # m/s
+    airspeed_stddev: 0.5       # m/s
+    altitude_stddev: 0.5       # m
+    attitude_stddev: 0.01      # rad
+    seed: null                 # Random seed (null = random)
+
+# Simulation runtime
+runtime:
+  duration: 60.0      # seconds
+  realtime: false     # Run as fast as possible
+  time_scale: 1.0     # Speed multiplier (1.0 = realtime)
+
+# Logging
+logging:
+  enabled: true
+  filename: "logs/simulation_{timestamp}.h5"
+  variables:
+    - "position"
+    - "velocity"
+    - "attitude"
+    - "angular_rate"
+    - "controls"
+    - "airspeed"
+    - "altitude"

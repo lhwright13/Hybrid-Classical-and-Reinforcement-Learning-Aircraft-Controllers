@@ -1,0 +1,121 @@
+# Default PID Gains for 5-Level Cascaded Control
+#
+# Tuning Guide:
+# 1. Tune Level 4 (Rate) first - inner loop must be stable
+# 2. Then tune Level 3 (Attitude) - outer loop
+# 3. Finally tune Level 2 (HSA)
+#
+# Inner loop (rate) should be 5-10x faster than outer loop (angle)
+
+# =============================================================================
+# Level 4: Rate Control (Inner Loop)
+# =============================================================================
+# Commands: p, q, r (angular velocities in rad/s)
+# Outputs: Surface deflections
+
+# Roll rate PID (p → aileron)
+roll_rate:
+  kp: 0.15        # Proportional gain
+  ki: 0.20        # Integral gain (remove steady-state error)
+  kd: 0.0002      # Derivative gain (damping)
+  i_limit: 25.0   # Integral windup limit
+
+# Pitch rate PID (q → elevator)
+pitch_rate:
+  kp: 0.15
+  ki: 0.20
+  kd: 0.0002
+  i_limit: 25.0
+
+# Yaw rate PID (r → rudder)
+yaw_rate:
+  kp: 0.30        # Yaw typically needs higher gain
+  ki: 0.05
+  kd: 0.00015
+  i_limit: 25.0
+
+# =============================================================================
+# Level 3: Attitude Control (Outer Loop)
+# =============================================================================
+# Commands: roll, pitch, yaw angles (rad)
+# Outputs: Rate commands (p, q, r)
+
+# Roll angle PID (roll → p_cmd)
+roll_angle:
+  kp: 0.20        # Lower than rate gains (outer loop slower)
+  ki: 0.30
+  kd: 0.05
+  i_limit: 25.0
+
+# Pitch angle PID (pitch → q_cmd)
+pitch_angle:
+  kp: 0.20
+  ki: 0.30
+  kd: 0.05
+  i_limit: 25.0
+
+# Yaw angle PID (yaw → r_cmd)
+yaw_angle:
+  kp: 0.30
+  ki: 0.05
+  kd: 0.00015
+  i_limit: 25.0
+
+# =============================================================================
+# Control Limits
+# =============================================================================
+
+# Rate limits (deg/s) - maximum commanded rates
+max_roll_rate: 180.0    # degrees/second
+max_pitch_rate: 180.0
+max_yaw_rate: 90.0
+
+# Angle limits (deg) - maximum commanded angles
+max_roll: 45.0          # degrees (bank angle limit)
+max_pitch: 30.0         # degrees (pitch angle limit)
+
+# Control loop rate
+dt: 0.01  # 100 Hz for angle loop, 1000 Hz for rate loop (hardcoded)
+
+# =============================================================================
+# Notes on Tuning
+# =============================================================================
+#
+# Cascaded Control Architecture:
+#   Angle (outer, slow) → Rate (inner, fast) → Surface
+#
+# Tuning Procedure:
+#
+# 1. **Tune Rate Loop First (Level 4)**:
+#    - Start with P-only control: kp=0.1, ki=0, kd=0
+#    - Increase kp until you get ~10 Hz oscillation
+#    - Add D term to dampen: kd=0.0002
+#    - Add I term for steady-state: ki=0.2
+#    - Target: ~10 Hz bandwidth, <10% overshoot
+#
+# 2. **Tune Angle Loop (Level 3)**:
+#    - Rate loop must be stable first!
+#    - Start with P-only: kp=0.2, ki=0, kd=0
+#    - Should be 5-10x slower than rate loop (~2 Hz)
+#    - Add I for steady-state tracking
+#    - Add D if needed for damping
+#
+# 3. **Verify Cascaded Performance**:
+#    - Step response: <1s settling, <20% overshoot
+#    - Frequency response: angle loop peaks at 2-5 Hz
+#    - Rate loop peaks at 10-20 Hz
+#
+# 4. **Safety Checks**:
+#    - No sustained oscillation
+#    - Integral doesn't wind up
+#    - Recovers from disturbances
+#
+# Aggressive vs Conservative:
+# - Aggressive: Higher kp, lower kd (faster response, more overshoot)
+# - Conservative: Lower kp, higher kd (slower response, less overshoot)
+#
+# Aircraft-Specific:
+# - Heavy aircraft: Lower gains
+# - Light aircraft: Higher gains
+# - High speed: Lower gains
+# - Low speed: Higher gains

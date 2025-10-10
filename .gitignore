@@ -45,9 +45,9 @@ venv.bak/
 .python-version
 
 # C++ extensions
-*.so
 *.dylib
 *.dll
+# Note: *.so is intentionally NOT ignored because we need aircraft_controls_bindings.*.so in project root
 *.exe
 *.out
 *.app

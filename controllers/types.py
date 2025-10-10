@@ -7,12 +7,21 @@ import numpy as np
 
 
 class ControlMode(Enum):
-    """Flight controller command modes."""
+    """Flight controller command modes.
 
-    WAYPOINT = 1  # Navigate to waypoint coordinates
-    HSA = 2  # Heading, Speed, Altitude control
-    STICK_THROTTLE = 3  # RC-style stick inputs
-    SURFACE = 4  # Direct control surface deflection
+    5-level control hierarchy:
+    - Level 1: WAYPOINT - Navigate to waypoint coordinates
+    - Level 2: HSA - Heading, Speed, Altitude control
+    - Level 3: ATTITUDE - Angle mode (roll/pitch/yaw angles)
+    - Level 4: RATE - Rate mode (p/q/r angular velocities)
+    - Level 5: SURFACE - Direct control surface deflection
+    """
+
+    WAYPOINT = 1  # Level 1: Navigate to waypoint coordinates
+    HSA = 2  # Level 2: Heading, Speed, Altitude control
+    ATTITUDE = 3  # Level 3: Angle mode (roll/pitch/yaw angles)
+    RATE = 4  # Level 4: Rate mode (p/q/r angular velocities)
+    SURFACE = 5  # Level 5: Direct control surface deflection
 
 
 @dataclass
@@ -125,7 +134,7 @@ class Waypoint:
 
 @dataclass
 class ControlCommand:
-    """Control command in any of the 4 modes.
+    """Control command in any of the 5 modes.
 
     Only fields relevant to the current mode should be populated.
     """
@@ -133,25 +142,32 @@ class ControlCommand:
     mode: ControlMode
     timestamp: float = 0.0
 
-    # Mode 1: Waypoint
+    # Level 1: Waypoint
     waypoint: Optional[Waypoint] = None
 
-    # Mode 2: HSA (Heading, Speed, Altitude)
+    # Level 2: HSA (Heading, Speed, Altitude)
     heading: Optional[float] = None  # radians
     speed: Optional[float] = None  # m/s
     altitude: Optional[float] = None  # meters
 
-    # Mode 3: Stick & Throttle (normalized -1 to 1, except throttle 0 to 1)
-    roll_cmd: Optional[float] = None
-    pitch_cmd: Optional[float] = None
-    yaw_cmd: Optional[float] = None
-    throttle: Optional[float] = None
+    # Level 3: Attitude (Angle mode - roll/pitch/yaw angles)
+    roll_angle: Optional[float] = None  # radians
+    pitch_angle: Optional[float] = None  # radians
+    yaw_angle: Optional[float] = None  # radians
 
-    # Mode 4: Surface Deflection (normalized -1 to 1, except throttle 0 to 1)
+    # Level 4: Rate (p/q/r angular velocities)
+    roll_rate: Optional[float] = None  # rad/s
+    pitch_rate: Optional[float] = None  # rad/s
+    yaw_rate: Optional[float] = None  # rad/s
+
+    # Throttle (shared across levels 3-5)
+    throttle: Optional[float] = None  # 0 to 1
+
+    # Level 5: Surface Deflection (normalized -1 to 1, except throttle 0 to 1)
     elevator: Optional[float] = None
     aileron: Optional[float] = None
     rudder: Optional[float] = None
-    # throttle is shared with Mode 3
+    # throttle is shared with other levels
 
 
 @dataclass
@@ -304,8 +320,10 @@ class ControllerConfig:
     )
 
     # Limits
-    max_roll: float = 30.0  # degrees for angle mode, deg/s for rate mode
-    max_pitch: float = 30.0  # degrees for angle mode, deg/s for rate mode
+    max_roll: float = 30.0  # degrees for angle mode
+    max_pitch: float = 30.0  # degrees for angle mode
+    max_roll_rate: float = 180.0  # deg/s for rate mode
+    max_pitch_rate: float = 180.0  # deg/s for rate mode
     max_yaw_rate: float = 160.0  # deg/s
 
     # Control loop rate

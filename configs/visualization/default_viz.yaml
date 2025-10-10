@@ -1,0 +1,153 @@
+# Multi-Aircraft Visualization Configuration
+
+# Logging settings
+logging:
+  buffer_size: 100              # Number of samples to buffer before flush
+  compression: gzip             # Compression algorithm (gzip, lzf, or null)
+  compression_level: 4          # Compression level (1-9 for gzip)
+  auto_flush_interval: 5.0      # Auto-flush interval (seconds)
+
+# Real-time plotter settings
+plotter:
+  window_size: 500              # Number of time steps in rolling window
+  update_rate: 10               # Plot update rate (Hz)
+  figure_size: [16, 12]         # Figure size (width, height) in inches
+  dpi: 100                      # Dots per inch
+  show_grid: true               # Show grid on plots
+  grid_alpha: 0.3               # Grid transparency
+  line_width: 2                 # Plot line width
+
+  # Fleet metrics
+  show_fleet_metrics: true      # Show average altitude, formation spread, etc.
+  show_individual_details: true # Show detail plots for first 3 aircraft
+
+# 3D visualization settings
+viz_3d:
+  window_size: [1024, 768]      # Window size (width, height)
+  trajectory_length: 500        # Number of points in trajectory trace
+  show_formation_lines: true    # Show lines between aircraft
+  show_ground_plane: true       # Show ground reference
+  ground_plane_size: 10000      # Ground plane size (meters)
+  ground_plane_resolution: 20   # Ground plane grid resolution
+
+  # Aircraft model
+  aircraft_scale: 10.0          # Aircraft model scale factor
+  aircraft_opacity: 0.9         # Aircraft opacity (0.0-1.0)
+
+  # Trajectory
+  trajectory_line_width: 2      # Trajectory line width
+  trajectory_opacity: 0.6       # Trajectory opacity
+
+  # Camera
+  camera_mode: fleet_center     # Camera mode: fleet_center, follow, or free
+  camera_distance_factor: 3.0   # Distance factor for auto camera positioning
+
+  # Performance
+  target_fps: 30                # Target frames per second
+  max_aircraft_for_full_detail: 10  # Max aircraft count for full rendering
+
+# Dashboard settings
+dashboard:
+  host: '127.0.0.1'             # Dashboard host
+  port: 8050                    # Dashboard port
+  debug: false                  # Debug mode
+  update_interval: 100          # Update interval (milliseconds)
+
+  # Tabs
+  show_fleet_tab: true          # Show fleet overview tab
+  show_individual_tab: true     # Show individual aircraft tab
+  show_3d_tab: true             # Show 3D visualization tab
+  show_control_tab: true        # Show control panel tab
+  show_replay_tab: true         # Show replay tab
+
+  # Colors
+  theme: 'bootstrap'            # Dashboard theme (bootstrap, cyborg, darkly, etc.)
+  plot_template: 'plotly'       # Plotly template (plotly, plotly_dark, etc.)
+
+# Replay settings
+replay:
+  default_speed: 1.0            # Default playback speed
+  dt: 0.01                      # Playback time step (seconds)
+  interpolation: linear         # Interpolation method (linear, cubic)
+
+  # Export
+  video_fps: 30                 # Video export FPS
+  video_codec: 'libx264'        # Video codec
+  video_quality: 23             # Video quality (lower = better, 18-28 typical)
+
+# Aircraft registry settings
+registry:
+  max_aircraft: 100             # Maximum number of aircraft
+  auto_assign_colors: true      # Automatically assign colors
+  auto_assign_markers: true     # Automatically assign markers
+
+  # Default aircraft properties
+  default_type: 'rc_plane'      # Default aircraft type
+
+# Performance and scalability
+performance:
+  # Thresholds for different aircraft counts
+  full_detail_threshold: 10     # Full detail up to this many aircraft
+  reduced_detail_threshold: 50  # Reduced detail between this and full
+  summary_only_threshold: 100   # Summary only above this
+
+  # Memory management
+  max_trajectory_points: 1000   # Max trajectory points to keep in memory
+  max_plot_points: 2000         # Max points to plot
+
+  # Threading
+  use_threading: true           # Use threading for performance
+  worker_threads: 4             # Number of worker threads
+
+# Display units
+units:
+  distance: metric              # Distance units: metric or imperial
+  speed: metric                 # Speed units: metric or imperial
+  altitude: metric              # Altitude units: metric or imperial
+  # metric: meters, m/s
+  # imperial: feet, knots
+
+# Colors (hex format)
+colors:
+  # Aircraft palette (10 colors)
+  aircraft:
+    - '#1f77b4'  # Blue
+    - '#ff7f0e'  # Orange
+    - '#2ca02c'  # Green
+    - '#d62728'  # Red
+    - '#9467bd'  # Purple
+    - '#8c564b'  # Brown
+    - '#e377c2'  # Pink
+    - '#7f7f7f'  # Gray
+    - '#bcbd22'  # Olive
+    - '#17becf'  # Cyan
+
+  # Status colors
+  status:
+    active: '#2ca02c'           # Green
+    inactive: '#7f7f7f'         # Gray
+    crashed: '#d62728'          # Red
+    disconnected: '#ff7f0e'     # Orange
+    landed: '#1f77b4'           # Blue
+    paused: '#bcbd22'           # Olive
+
+# Export settings
+export:
+  default_format: png           # Default image format (png, jpg, svg, pdf)
+  default_dpi: 150              # Default DPI for exports
+  include_timestamp: true       # Include timestamp in filename
+
+  # CSV export
+  csv_delimiter: ','            # CSV delimiter
+  csv_float_format: '%.6f'      # Float format
+
+  # Video export
+  video_bitrate: '5000k'        # Video bitrate
+  video_format: 'mp4'           # Video format
+
+# Notifications
+notifications:
+  show_aircraft_registered: true   # Notify when aircraft registered
+  show_aircraft_crashed: true      # Notify when aircraft crashes
+  show_log_saved: true             # Notify when log saved
+  show_export_complete: true       # Notify when export completes

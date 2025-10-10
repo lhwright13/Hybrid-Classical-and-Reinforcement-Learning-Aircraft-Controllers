@@ -16,10 +16,10 @@ This project creates a **multi-level aircraft control system** that enables:
 Aircraft control naturally forms a hierarchy of abstraction:
 
 ```
-Level 1: Waypoint Navigation    ← Highest abstraction, hardest to learn
+Level 1: Waypoint Navigation    ← Highest abstraction
 Level 2: HSA (Heading/Speed/Alt) ← High-level flight states
 Level 3: Stick & Throttle        ← Medium-level attitude control
-Level 4: Control Surfaces        ← Lowest abstraction, easiest to learn
+Level 4: Control Surfaces        ← Lowest abstraction
 ```
 
 **Key Insight**: Agents can command at ANY level. Training an agent at Level 4 (surfaces) is fundamentally different from Level 1 (waypoints):
