@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Main development environment
+  aircraft-control:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aircraft-control:latest
+    container_name: aircraft-control-dev
+    volumes:
+      - .:/workspace
+      - ./logs:/workspace/logs
+      - ./models:/workspace/models
+    environment:
+      - HEADLESS=false  # Set to true for headless operation
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+  # Headless training environment (for RL training)
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aircraft-control:latest
+    container_name: aircraft-control-training
+    volumes:
+      - .:/workspace
+      - ./logs:/workspace/logs
+      - ./models:/workspace/models
+    environment:
+      - HEADLESS=true
+      - PYTHONUNBUFFERED=1
+      - OMP_NUM_THREADS=4
+    command: python training/train_level3_ppo.py
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 16G
+
+  # Multi-agent training (separate container for scaling)
+  multi-agent-training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aircraft-control:latest
+    container_name: aircraft-control-multi-agent
+    volumes:
+      - .:/workspace
+      - ./logs:/workspace/logs
+      - ./models:/workspace/models
+    environment:
+      - HEADLESS=true
+      - PYTHONUNBUFFERED=1
+    command: python training/train_multi_agent_rllib.py
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 16G
+
+  # Dashboard/visualization service
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aircraft-control:latest
+    container_name: aircraft-control-dashboard
+    volumes:
+      - .:/workspace
+      - ./logs:/workspace/logs
+    ports:
+      - "8050:8050"  # Dash app
+      - "6006:6006"  # TensorBoard
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python gui/run_dashboard.py
+
+  # TensorBoard service
+  tensorboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aircraft-control:latest
+    container_name: aircraft-control-tensorboard
+    volumes:
+      - ./logs:/workspace/logs
+    ports:
+      - "6006:6006"
+    command: tensorboard --logdir=/workspace/logs/tensorboard --host=0.0.0.0
+
+volumes:
+  logs:
+  models:

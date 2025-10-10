@@ -1,0 +1,267 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# C++ extensions
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+
+# Build directories
+build/
+build_*/
+*.build/
+
+# Logs and data
+logs/
+*.log
+*.hdf5
+*.h5
+
+# Models
+models/*.zip
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.pb
+models/checkpoints/
+models/saved/
+
+# Keep example models
+!models/examples/
+
+# Experiment outputs
+runs/
+outputs/
+results/
+experiments/
+wandb/
+mlruns/
+
+# Screenshots and videos
+screenshots/
+videos/
+*.mp4
+*.avi
+*.mov
+*.png
+*.jpg
+*.jpeg
+
+# Keep example media
+!docs/images/
+!design_docs/images/
+
+# TensorBoard
+events.out.tfevents.*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Environments
+.env
+.env.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Secrets (NEVER commit these)
+secrets/
+*.key
+*.pem
+*.p12
+credentials.json
+*.secret
+.secrets
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Hardware-specific
+*.bin
+*.hex
+*.elf
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ROS (if used in future)
+devel/
+.catkin_workspace
+*.bag
+
+# Docker (keep Dockerfile and docker-compose)
+# But ignore any generated files
+.dockerignore
+
+# Large data files (use Git LFS if needed)
+*.tar.gz
+*.zip
+*.7z
+*.rar
+data/large/
+datasets/
+
+# Keep small example data
+!data/examples/
+!datasets/examples/
+
+# JSBSim outputs
+*.csv
+*.dat
+output/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE and editor configs (optional - can keep personal configs)
+# Uncomment if you want to ignore these
+# .vscode/settings.json
+# .idea/workspace.xml
+
+# System files
+.cache/
+
+# Profiling
+*.prof
+*.lprof
