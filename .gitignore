@@ -265,3 +265,6 @@ output/
 # Profiling
 *.prof
 *.lprof
+
+# External repositories (use git submodule instead)
+dRehmFlight/
