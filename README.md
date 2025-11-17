@@ -116,10 +116,12 @@ See [ROADMAP.md](ROADMAP.md) for detailed future work.
 
 ### Visualization & Tools
 - **Interactive Pygame GUI**: Drag-and-drop joystick, real-time telemetry, mode switching
+- **FlightGear Integration**: Photorealistic 3D visualization with HUD overlay
 - **Multi-Aircraft Logging**: HDF5 with compression, synchronized replay
 - **3D Fleet Visualization**: PyVista-based multi-aircraft viewer
 - **TensorBoard Plugin**: Custom flight telemetry visualization
 - **Real-Time Plotting**: Matplotlib-based multi-aircraft monitoring
+- **Manual Flying**: Experience all 5 control levels hands-on (see [MANUAL_CONTROL.md](MANUAL_CONTROL.md))
 
 ### Research Infrastructure
 - **132 Comprehensive Tests**: Interface compliance, PID bindings, simulation, control integration
@@ -186,9 +188,11 @@ For detailed setup instructions, see [QUICKSTART.md](QUICKSTART.md).
 
 ### User Guides
 - [QUICKSTART.md](QUICKSTART.md) - Installation and first simulation
+- [MANUAL_CONTROL.md](MANUAL_CONTROL.md) - Manual flying guide for all 5 control levels
 - [examples/README.md](examples/README.md) - Example walkthroughs and learning path
 - [EXPERIMENTS.md](EXPERIMENTS.md) - RL vs PID methodology, results, and reproduction
 - [FAQ.md](FAQ.md) - Common questions and troubleshooting
+- [flightgear/README.md](flightgear/README.md) - FlightGear 3D visualization setup
 
 ### Design Documentation (14 comprehensive docs)
 - [System Overview](design_docs/01_SYSTEM_OVERVIEW.md) - Architecture and philosophy

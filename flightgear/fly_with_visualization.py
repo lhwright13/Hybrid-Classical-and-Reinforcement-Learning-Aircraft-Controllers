@@ -15,11 +15,41 @@ import os
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from simulation.simplified_6dof import AircraftState, Simplified6DOF
-from controllers.rate_agent import RateAgent
-from controllers.attitude_agent import AttitudeAgent
-from controllers.hsa_agent import HSAAgent
+from validation.jsbsim_backend import JSBSimBackend
 from controllers.waypoint_agent import WaypointAgent
+from controllers.mission_planner import MissionPlanner, Waypoint
+from controllers.types import ControllerConfig, AircraftState, ControlMode, ControlCommand, PIDGains
+import yaml
+from pathlib import Path
+
+
+def load_controller_config(config_file="jsbsim_gains.yaml"):
+    """Load PID gains from config file.
+
+    Args:
+        config_file: Name of config file in configs/controllers/
+    """
+    config_path = Path(__file__).parent.parent / "configs" / "controllers" / config_file
+
+    with open(config_path, 'r') as f:
+        gains_config = yaml.safe_load(f)
+
+    config = ControllerConfig()
+    config.roll_rate_gains = PIDGains(**gains_config['roll_rate'])
+    config.pitch_rate_gains = PIDGains(**gains_config['pitch_rate'])
+    config.yaw_gains = PIDGains(**gains_config['yaw_rate'])
+    config.roll_angle_gains = PIDGains(**gains_config['roll_angle'])
+    config.pitch_angle_gains = PIDGains(**gains_config['pitch_angle'])
+    config.heading_gains = PIDGains(**gains_config['heading'])
+    config.speed_gains = PIDGains(**gains_config['speed'])
+    config.altitude_gains = PIDGains(**gains_config['altitude'])
+    config.max_roll = gains_config['max_roll']
+    config.max_pitch = gains_config['max_pitch']
+    config.max_roll_rate = gains_config['max_roll_rate']
+    config.max_pitch_rate = gains_config['max_pitch_rate']
+    config.max_yaw_rate = gains_config['max_yaw_rate']
+
+    return config
 
 
 class FlightGearVisualizer:
@@ -45,6 +75,14 @@ class FlightGearVisualizer:
             self.sock.settimeout(0.1)
             self.connected = True
             print("✓ Connected to FlightGear!")
+
+            # Disable FlightGear's flight dynamics - we control everything!
+            print("  Freezing FlightGear's physics engine...")
+            self.sock.send(b"set /sim/freeze/flight-model 1\r\n")
+            self.sock.send(b"set /controls/engines/engine[0]/cutoff 0\r\n")  # Keep engine on for realism
+            time.sleep(0.1)
+            print("  ✓ FlightGear physics disabled - full Python control!")
+
             return True
         except Exception as e:
             print(f"✗ Failed to connect to FlightGear: {e}")
@@ -135,28 +173,25 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
         print("  To see visualization, make sure FlightGear is running and try again\n")
         time.sleep(2)
 
-    # Initial state - start at first waypoint
-    initial_state = AircraftState(
-        time=0.0,
-        position=np.array([waypoints[0][0], waypoints[0][1], -waypoints[0][2]]),  # NED: down is negative altitude
-        velocity=np.array([12.0, 0.0, 0.0]),  # 12 m/s forward
-        attitude=np.array([0.0, 0.0, 0.0]),  # level flight
-        angular_rate=np.array([0.0, 0.0, 0.0]),  # no rotation
-        airspeed=12.0,
-        altitude=waypoints[0][2],
-        ground_speed=12.0,
-        heading=0.0
-    )
+    # Convert waypoints to Waypoint objects
+    waypoint_objects = [Waypoint.from_altitude(north=wp[0], east=wp[1], altitude=wp[2]) for wp in waypoints]
 
-    # Initialize simulation
-    sim = Simplified6DOF()
-    sim.reset(initial_state)
+    # Initialize mission planner and controller with JSBSim-specific gains
+    config = load_controller_config("jsbsim_gains.yaml")
+    planner = MissionPlanner(waypoint_objects, acceptance_radius=300.0)
+    planner.start()  # Start the mission
+    agent = WaypointAgent(config, guidance_type="pure_pursuit")
 
-    # Initialize control hierarchy
-    rate_agent = RateAgent()
-    attitude_agent = AttitudeAgent()
-    hsa_agent = HSAAgent()
-    waypoint_agent = WaypointAgent(waypoints=waypoints)
+    # Initialize JSBSim simulation (much more realistic than simplified 6DOF!)
+    print("\n🚀 Using JSBSim for realistic flight dynamics...")
+    jsbsim_config = {
+        'aircraft': 'c172p',  # Cessna 172
+        'initial_lat': 37.6177,  # KSFO
+        'initial_lon': -122.3750,
+        'initial_altitude': waypoints[0][2],  # Start altitude
+        'dt_physics': 0.01  # 100 Hz physics
+    }
+    sim = JSBSimBackend(jsbsim_config)
 
     # Simulation loop
     print("Starting simulation...")
@@ -173,18 +208,18 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
             # Get current state
             state = sim.get_state()
 
-            # Control hierarchy (bottom to top)
-            # Level 5: Waypoint → HSA commands
-            hsa_cmd = waypoint_agent.compute_control(state)
+            # Update mission planner (checks waypoint reached and advances)
+            planner.update(state)
 
-            # Level 4: HSA → Attitude commands
-            att_cmd = hsa_agent.compute_control(state, hsa_cmd)
+            # Get current waypoint command
+            waypoint_cmd = planner.get_waypoint_command()
 
-            # Level 3: Attitude → Rate commands
-            rate_cmd = attitude_agent.compute_control(state, att_cmd)
+            # If no waypoint (mission complete or not started), break
+            if waypoint_cmd is None:
+                break
 
-            # Level 2: Rate → Surface commands
-            surfaces = rate_agent.compute_control(state, rate_cmd)
+            # Compute control surfaces from waypoint command
+            surfaces = agent.compute_action(waypoint_cmd, state, dt=dt)
 
             # Set control surfaces and step simulation (YOUR physics, not FlightGear's)
             sim.set_controls(surfaces)
@@ -196,16 +231,18 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
 
             # Print status periodically
             if sim_time - last_update >= update_interval:
-                wp_info = waypoint_agent.get_status()
-                print(f"[{sim_time:6.1f}s] WP {wp_info['current_waypoint_index']+1}/{len(waypoints)} | "
-                      f"Dist: {wp_info['distance_to_waypoint']:.0f}m | "
+                summary = planner.get_summary()
+                current_wp = summary['current_waypoint_index']
+                dist = planner.get_distance_to_current_waypoint(state)
+                print(f"[{sim_time:6.1f}s] WP {current_wp+1}/{len(waypoints)} | "
+                      f"Dist: {dist:.0f}m | "
                       f"Alt: {state.altitude:.0f}m | "
-                      f"Speed: {np.linalg.norm([state.u, state.v, state.w]):.1f}m/s | "
+                      f"Speed: {state.airspeed:.1f}m/s | "
                       f"Hdg: {np.degrees(state.heading):.0f}°")
                 last_update = sim_time
 
             # Check if mission complete
-            if waypoint_agent.mission_complete():
+            if planner.is_complete():
                 print(f"\n✓ Mission complete! All {len(waypoints)} waypoints reached in {sim_time:.1f}s")
                 break
 
@@ -223,12 +260,13 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
         print("\n" + "="*70)
         print("MISSION SUMMARY")
         print("="*70)
-        wp_info = waypoint_agent.get_status()
-        print(f"Waypoints reached: {wp_info['waypoints_reached']}/{len(waypoints)}")
+        summary = planner.get_summary()
+        print(f"Waypoints reached: {summary['waypoints_reached']}/{len(waypoints)}")
         print(f"Simulation time: {sim_time:.1f}s")
         print(f"Steps: {steps}")
-        print(f"Final altitude: {state.altitude:.1f}m")
-        print(f"Final speed: {np.linalg.norm([state.u, state.v, state.w]):.1f}m/s")
+        final_state = sim.get_state()
+        print(f"Final altitude: {final_state.altitude:.1f}m")
+        print(f"Final speed: {final_state.airspeed:.1f}m/s")
         print("="*70 + "\n")
 
 

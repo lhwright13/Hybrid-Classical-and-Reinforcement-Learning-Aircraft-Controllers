@@ -150,13 +150,17 @@ class JSBSimBackend(AircraftInterface):
 
             # Attitude
             self.fdm['ic/phi-deg'] = 0.0  # Roll
-            self.fdm['ic/theta-deg'] = 0.0  # Pitch
+            self.fdm['ic/theta-deg'] = 3.0  # Pitch (3° nose up for level cruise)
             self.fdm['ic/psi-true-deg'] = 0.0  # Yaw/heading
 
-            # Velocities (body frame)
-            self.fdm['ic/u-fps'] = 20.0 * 3.28084  # 20 m/s forward velocity
+            # Velocities (body frame) - use safe cruise speed above stall
+            # C172P stall speed ~48 knots, cruise ~100 knots, use 60 knots = 30 m/s
+            self.fdm['ic/u-fps'] = 30.0 * 3.28084  # 30 m/s forward velocity (safe above stall)
             self.fdm['ic/v-fps'] = 0.0
             self.fdm['ic/w-fps'] = 0.0
+
+            # Set initial throttle for level flight (~60% for cruise)
+            self.fdm['ic/throttle-pos'] = 0.6
 
             # Rates
             self.fdm['ic/p-rad_sec'] = 0.0

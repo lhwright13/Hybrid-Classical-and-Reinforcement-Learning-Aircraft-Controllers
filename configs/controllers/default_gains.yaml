@@ -22,9 +22,9 @@ roll_rate:
 
 # Pitch rate PID (q → elevator)
 pitch_rate:
-  kp: 0.30        # TUNED: increased from 0.15
-  ki: 0.20
-  kd: 0.0002
+  kp: 0.10        # REDUCED: Was 0.30, causing high-freq oscillations
+  ki: 0.05        # REDUCED: Was 0.20, less integral windup
+  kd: 0.005       # INCREASED: Was 0.0002, more damping to stop oscillations
   i_limit: 25.0
 
 # Yaw rate PID (r → rudder)
@@ -49,9 +49,9 @@ roll_angle:
 
 # Pitch angle PID (pitch → q_cmd)
 pitch_angle:
-  kp: 0.30        # TUNED: increased from 0.20
-  ki: 0.20        # TUNED: reduced from 0.30
-  kd: 0.08        # TUNED: increased from 0.05
+  kp: 0.15        # REDUCED: Was 0.30, causing cascaded oscillations
+  ki: 0.05        # REDUCED: Was 0.20, less integral fighting
+  kd: 0.15        # INCREASED: Was 0.08, more damping
   i_limit: 25.0
 
 # Yaw angle PID (yaw → r_cmd)

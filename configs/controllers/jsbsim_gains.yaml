@@ -81,10 +81,10 @@ speed:
 
 # Altitude PID (altitude → pitch_cmd)
 altitude:
-  kp: 0.15        # Conservative to prevent phugoid
-  ki: 0.01        # Low integral to avoid energy coupling
-  kd: 0.08        # Damping to stabilize climb/descend
-  i_limit: 10.0
+  kp: 0.025       # INCREASED: Need stronger response to altitude error (was 0.15 but too high for rad output)
+  ki: 0.002       # Small integral to eliminate steady-state error
+  kd: 0.015       # Damping to prevent oscillations
+  i_limit: 0.2    # Limit integral windup (radians)
 
 # =============================================================================
 # Control Limits
