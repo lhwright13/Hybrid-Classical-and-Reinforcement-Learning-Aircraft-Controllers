@@ -251,4 +251,4 @@ class TestPIDIntegration:
         """Module has version attribute."""
         assert hasattr(acb, "__version__")
         assert isinstance(acb.__version__, str)
-        assert acb.__version__ == "1.0.0"
+        assert acb.__version__ == "1.1.0"

@@ -1,0 +1,67 @@
+# Quick Test Configuration - Fast training for verification
+
+# Environment settings
+environment:
+  difficulty: "easy"
+  episode_length: 5.0
+  dt: 0.02
+  command_type: "step"
+
+# Training settings
+training:
+  total_timesteps: 10000  # Quick test (just 10k steps)
+  n_envs: 2  # Fewer parallel envs for quick test
+  eval_freq: 5000
+  save_freq: 5000
+  log_interval: 1
+
+# Curriculum learning (disabled for quick test)
+curriculum:
+  enabled: false
+
+# PPO Hyperparameters (same as main but faster)
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 512  # Smaller for faster updates
+  batch_size: 64
+  n_epochs: 4  # Fewer epochs for speed
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: null
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  use_sde: false
+  sde_sample_freq: -1
+
+# LSTM Architecture (smaller for quick test)
+lstm:
+  enabled: true
+  lstm_hidden_size: 128  # Smaller than production
+  n_lstm_layers: 1  # Single layer
+  features_dim: 64  # Smaller feature dim
+
+# Alternative: MLP Architecture
+mlp:
+  net_arch: [128, 64]
+
+# Normalization
+normalize:
+  obs: false
+  reward: false
+
+# Model paths
+paths:
+  model_save_dir: "learned_controllers/models/checkpoints"
+  tensorboard_log: "learned_controllers/logs/tensorboard"
+  best_model_path: "learned_controllers/models/test_model"
+
+# Evaluation
+evaluation:
+  n_eval_episodes: 3  # Fewer episodes for quick test
+  deterministic: true
+  render: false
+
+# Random seed
+seed: 42

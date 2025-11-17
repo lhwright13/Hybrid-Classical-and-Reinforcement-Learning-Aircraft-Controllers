@@ -15,21 +15,21 @@
 
 # Roll rate PID (p → aileron)
 roll_rate:
-  kp: 0.15        # Proportional gain
+  kp: 0.30        # Proportional gain (TUNED: increased from 0.15)
   ki: 0.20        # Integral gain (remove steady-state error)
   kd: 0.0002      # Derivative gain (damping)
   i_limit: 25.0   # Integral windup limit
 
 # Pitch rate PID (q → elevator)
 pitch_rate:
-  kp: 0.15
+  kp: 0.30        # TUNED: increased from 0.15
   ki: 0.20
   kd: 0.0002
   i_limit: 25.0
 
 # Yaw rate PID (r → rudder)
 yaw_rate:
-  kp: 0.30        # Yaw typically needs higher gain
+  kp: 0.20        # TUNED: reduced from 0.30 to reduce oscillations
   ki: 0.05
   kd: 0.00015
   i_limit: 25.0
@@ -42,16 +42,16 @@ yaw_rate:
 
 # Roll angle PID (roll → p_cmd)
 roll_angle:
-  kp: 0.20        # Lower than rate gains (outer loop slower)
-  ki: 0.30
-  kd: 0.05
+  kp: 0.30        # TUNED: increased from 0.20 for better tracking
+  ki: 0.20        # TUNED: reduced from 0.30 to reduce overshoot
+  kd: 0.08        # TUNED: increased from 0.05 for more damping
   i_limit: 25.0
 
 # Pitch angle PID (pitch → q_cmd)
 pitch_angle:
-  kp: 0.20
-  ki: 0.30
-  kd: 0.05
+  kp: 0.30        # TUNED: increased from 0.20
+  ki: 0.20        # TUNED: reduced from 0.30
+  kd: 0.08        # TUNED: increased from 0.05
   i_limit: 25.0
 
 # Yaw angle PID (yaw → r_cmd)
@@ -62,17 +62,44 @@ yaw_angle:
   i_limit: 25.0
 
 # =============================================================================
+# Level 2: HSA Control (Heading/Speed/Altitude)
+# =============================================================================
+# Commands: heading, speed, altitude
+# Outputs: Attitude commands (roll, pitch, throttle)
+
+# Heading PID (heading → roll_cmd)
+heading:
+  kp: 0.5         # Very gentle turns to prevent overshoot oscillations
+  ki: 0.01        # Minimal integral to avoid windup
+  kd: 0.4         # High damping to prevent limit cycles
+  i_limit: 10.0
+
+# Speed PID (airspeed → throttle)
+speed:
+  kp: 0.01        # PHASE 1 REVISED: Slight increase for better response
+  ki: 0.0         # PHASE 1: Disabled integral to prevent windup
+  kd: 0.0         # No derivative
+  i_limit: 5.0
+
+# Altitude PID (altitude → pitch_cmd)
+altitude:
+  kp: 0.001       # CORRECTED SCALING: 100m error → ~5° pitch (0.001 * 100 * 57.3 = 5.73°)
+  ki: 0.0001      # Very weak integral (scaled down proportionally)
+  kd: 0.002       # Light damping (scaled down proportionally)
+  i_limit: 10.0
+
+# =============================================================================
 # Control Limits
 # =============================================================================
 
 # Rate limits (deg/s) - maximum commanded rates
-max_roll_rate: 180.0    # degrees/second
-max_pitch_rate: 180.0
-max_yaw_rate: 90.0
+max_roll_rate: 90.0     # TUNED: reduced from 180 for smoother control
+max_pitch_rate: 90.0    # TUNED: reduced from 180
+max_yaw_rate: 60.0      # TUNED: reduced from 90 to reduce oscillations
 
 # Angle limits (deg) - maximum commanded angles
-max_roll: 45.0          # degrees (bank angle limit)
-max_pitch: 30.0         # degrees (pitch angle limit)
+max_roll: 40.0          # TUNED: 40° for stable coordinated turns without stalling
+max_pitch: 25.0         # TUNED: reduced from 30 for smoother altitude control
 
 # Control loop rate
 dt: 0.01  # 100 Hz for angle loop, 1000 Hz for rate loop (hardcoded)

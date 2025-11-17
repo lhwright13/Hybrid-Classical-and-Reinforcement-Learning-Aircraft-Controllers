@@ -683,6 +683,11 @@ class FlightControlGUI:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
                 self.show_debug = not self.show_debug
 
+            # Toggle learned/PID controller (if available)
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_l:
+                if hasattr(self.sim_worker, 'toggle_controller'):
+                    self.sim_worker.toggle_controller()
+
             # Joystick
             if self.current_mode in [ControlMode.SURFACE, ControlMode.RATE, ControlMode.ATTITUDE]:
                 self.joystick.handle_event(event)
@@ -882,6 +887,15 @@ class FlightControlGUI:
                 f"  Roll: {cmd_roll_rate:+.1f}°/s",
                 f"  Pitch: {cmd_pitch_rate:+.1f}°/s",
                 f"  Yaw: {cmd_yaw_rate:+.1f}°/s",
+                "",
+            ])
+
+        # Show rate controller type if in Rate mode
+        if self.current_mode == ControlMode.RATE:
+            rate_controller = self.current_state.get('rate_controller', 'PID')
+            telem_data.extend([
+                f"Rate Controller: {rate_controller}",
+                "(Press 'L' to toggle)" if hasattr(self.sim_worker, 'toggle_controller') else "",
                 "",
             ])
 

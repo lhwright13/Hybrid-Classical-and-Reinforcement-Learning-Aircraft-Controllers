@@ -167,7 +167,13 @@ class BaseAgent(ABC):
                 'high': np.inf,
                 'description': '[pos(3), vel(3), att(3), target_HSA(3)]'
             },
-            ControlMode.STICK_THROTTLE: {
+            ControlMode.RATE: {
+                'shape': (10,),
+                'low': -np.inf,
+                'high': np.inf,
+                'description': '[vel(3), att(3), rates(3), airspeed]'
+            },
+            ControlMode.ATTITUDE: {
                 'shape': (10,),
                 'low': -np.inf,
                 'high': np.inf,
@@ -210,11 +216,17 @@ class BaseAgent(ABC):
                 'high': np.array([2*np.pi, 100, 1000]),
                 'description': '[heading(rad), speed(m/s), altitude(m)]'
             },
-            ControlMode.STICK_THROTTLE: {
+            ControlMode.RATE: {
                 'shape': (4,),
                 'low': np.array([-1, -1, -1, 0]),
                 'high': np.array([1, 1, 1, 1]),
-                'description': '[roll_cmd, pitch_cmd, yaw_cmd, throttle]'
+                'description': '[roll_rate, pitch_rate, yaw_rate, throttle]'
+            },
+            ControlMode.ATTITUDE: {
+                'shape': (4,),
+                'low': np.array([-1, -1, -1, 0]),
+                'high': np.array([1, 1, 1, 1]),
+                'description': '[roll_angle, pitch_angle, yaw_angle, throttle]'
             },
             ControlMode.SURFACE: {
                 'shape': (4,),
@@ -263,7 +275,7 @@ class BaseAgent(ABC):
                 np.zeros(3),  # Target HSA (needs target)
             ])
 
-        elif level == ControlMode.STICK_THROTTLE:
+        elif level == ControlMode.RATE or level == ControlMode.ATTITUDE:
             return np.array([
                 state.velocity[0],
                 state.velocity[1],

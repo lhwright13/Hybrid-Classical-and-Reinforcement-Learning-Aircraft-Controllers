@@ -9,6 +9,7 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
+from controllers.utils.pid_utils import create_pid_config
 
 
 class RateAgent(BaseAgent):
@@ -37,38 +38,9 @@ class RateAgent(BaseAgent):
         self.config = config
 
         # Create C++ PID configurations for rate control
-        roll_rate_config = acb.PIDConfig()
-        roll_rate_config.gains = acb.PIDGains(
-            config.roll_rate_gains.kp,
-            config.roll_rate_gains.ki,
-            config.roll_rate_gains.kd
-        )
-        roll_rate_config.integral_min = -config.roll_rate_gains.i_limit
-        roll_rate_config.integral_max = config.roll_rate_gains.i_limit
-        roll_rate_config.output_min = -1.0
-        roll_rate_config.output_max = 1.0
-
-        pitch_rate_config = acb.PIDConfig()
-        pitch_rate_config.gains = acb.PIDGains(
-            config.pitch_rate_gains.kp,
-            config.pitch_rate_gains.ki,
-            config.pitch_rate_gains.kd
-        )
-        pitch_rate_config.integral_min = -config.pitch_rate_gains.i_limit
-        pitch_rate_config.integral_max = config.pitch_rate_gains.i_limit
-        pitch_rate_config.output_min = -1.0
-        pitch_rate_config.output_max = 1.0
-
-        yaw_rate_config = acb.PIDConfig()
-        yaw_rate_config.gains = acb.PIDGains(
-            config.yaw_gains.kp,
-            config.yaw_gains.ki,
-            config.yaw_gains.kd
-        )
-        yaw_rate_config.integral_min = -config.yaw_gains.i_limit
-        yaw_rate_config.integral_max = config.yaw_gains.i_limit
-        yaw_rate_config.output_min = -1.0
-        yaw_rate_config.output_max = 1.0
+        roll_rate_config = create_pid_config(config.roll_rate_gains)
+        pitch_rate_config = create_pid_config(config.pitch_rate_gains)
+        yaw_rate_config = create_pid_config(config.yaw_gains)
 
         # Create multi-axis PID controller (C++)
         self.rate_controller = acb.MultiAxisPIDController(

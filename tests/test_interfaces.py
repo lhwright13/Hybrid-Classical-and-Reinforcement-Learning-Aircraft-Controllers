@@ -41,9 +41,9 @@ class ConcreteAgent(BaseAgent):
         # Return a dummy command
         return ControlCommand(
             mode=self.control_level,
-            roll_cmd=0.0,
-            pitch_cmd=0.0,
-            yaw_cmd=0.0,
+            roll_rate=0.0,
+            pitch_rate=0.0,
+            yaw_rate=0.0,
             throttle=0.5,
         )
 
@@ -58,10 +58,10 @@ class TestBaseAgent:
 
     def test_concrete_agent_implements_required_methods(self):
         """Concrete agent must implement all abstract methods."""
-        agent = ConcreteAgent(ControlMode.STICK_THROTTLE)
+        agent = ConcreteAgent(ControlMode.RATE)
 
         # Test get_control_level
-        assert agent.get_control_level() == ControlMode.STICK_THROTTLE
+        assert agent.get_control_level() == ControlMode.RATE
 
         # Test reset
         state = AircraftState(altitude=100.0)
@@ -72,14 +72,14 @@ class TestBaseAgent:
         obs = np.zeros(10)
         command = agent.get_action(obs)
         assert isinstance(command, ControlCommand)
-        assert command.mode == ControlMode.STICK_THROTTLE
+        assert command.mode == ControlMode.RATE
 
     def test_observation_space_per_level(self):
         """Each control level has correct observation space dimensions."""
         test_cases = [
             (ControlMode.WAYPOINT, 12),
             (ControlMode.HSA, 12),
-            (ControlMode.STICK_THROTTLE, 10),
+            (ControlMode.RATE, 10),
             (ControlMode.SURFACE, 14),
         ]
 
@@ -93,7 +93,7 @@ class TestBaseAgent:
         test_cases = [
             (ControlMode.WAYPOINT, 4),
             (ControlMode.HSA, 3),
-            (ControlMode.STICK_THROTTLE, 4),
+            (ControlMode.RATE, 4),
             (ControlMode.SURFACE, 4),
         ]
 
@@ -103,8 +103,8 @@ class TestBaseAgent:
             assert action_space["shape"] == (expected_dim,)
 
     def test_preprocess_observation_stick_level(self):
-        """preprocess_observation extracts correct features for stick level."""
-        agent = ConcreteAgent(ControlMode.STICK_THROTTLE)
+        """preprocess_observation extracts correct features for rate level."""
+        agent = ConcreteAgent(ControlMode.RATE)
 
         state = AircraftState(
             velocity=np.array([10.0, 5.0, -2.0]),
@@ -124,18 +124,18 @@ class TestBaseAgent:
 
     def test_switch_control_level_not_implemented_by_default(self):
         """switch_control_level raises NotImplementedError by default."""
-        agent = ConcreteAgent(ControlMode.STICK_THROTTLE)
+        agent = ConcreteAgent(ControlMode.RATE)
         with pytest.raises(NotImplementedError):
             agent.switch_control_level(ControlMode.HSA)
 
     def test_optional_methods_have_default_implementation(self):
         """Optional methods (update, save, load) should not raise errors."""
-        agent = ConcreteAgent(ControlMode.STICK_THROTTLE)
+        agent = ConcreteAgent(ControlMode.RATE)
 
         # update() is optional
         transition = {
             "state": np.zeros(10),
-            "action": ControlCommand(mode=ControlMode.STICK_THROTTLE),
+            "action": ControlCommand(mode=ControlMode.RATE),
             "reward": 1.0,
             "next_state": np.zeros(10),
             "done": False,
@@ -511,7 +511,7 @@ class TestInterfaceIntegration:
     def test_agent_aircraft_sensor_pipeline(self):
         """Complete pipeline: agent commands → aircraft → sensor → agent."""
         # Create components
-        agent = ConcreteAgent(ControlMode.STICK_THROTTLE)
+        agent = ConcreteAgent(ControlMode.RATE)
         aircraft = ConcreteAircraft()
         sensor = PerfectSensorInterface()
 
@@ -529,14 +529,14 @@ class TestInterfaceIntegration:
 
             # Agent produces command
             command = agent.get_action(obs)
-            assert command.mode == ControlMode.STICK_THROTTLE
+            assert command.mode == ControlMode.RATE
 
             # Convert command to control surfaces (simplified)
             surfaces = ControlSurfaces(
-                elevator=command.pitch_cmd,
-                aileron=command.roll_cmd,
-                rudder=command.yaw_cmd,
-                throttle=command.throttle,
+                elevator=command.pitch_rate if command.pitch_rate else 0.0,
+                aileron=command.roll_rate if command.roll_rate else 0.0,
+                rudder=command.yaw_rate if command.yaw_rate else 0.0,
+                throttle=command.throttle if command.throttle else 0.5,
             )
 
             # Apply to aircraft

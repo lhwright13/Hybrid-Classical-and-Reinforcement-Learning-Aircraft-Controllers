@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!--
+  Simple electric motor model for RC plane
+  Max thrust: 50 N (11.24 lbf)
+
+  Matches simplified_6dof.py: max_thrust = 50.0 N
+-->
+
+<piston_engine name="electric_motor_50N">
+
+  <!--
+    Electric motor modeled as a simple piston engine
+    JSBSim doesn't have native electric motor support,
+    so we use a simplified piston model with:
+    - Very low displacement (small engine)
+    - Instant response (no spool-up time)
+    - Linear throttle response
+  -->
+
+  <minmp unit="INHG">          0.1 </minmp>
+  <maxmp unit="INHG">         30.0 </maxmp>
+  <displacement unit="IN3">    1.0 </displacement>
+  <maxhp>        1.5 </maxhp>  <!-- ~1.12 kW @ 50N thrust at 22 m/s -->
+  <cycles>       2.0 </cycles>
+  <idlerpm>    700 </idlerpm>
+  <maxrpm>    8000 </maxrpm>
+  <maxthrottle> 1.0 </maxthrottle>
+  <minthrottle> 0.0 </minthrottle>
+
+  <!-- Stroke and bore (required, set to match displacement) -->
+  <stroke unit="IN"> 1.0 </stroke>
+  <bore unit="IN">   1.0 </bore>
+
+  <!-- Compression ratio -->
+  <compression-ratio> 8.0 </compression-ratio>
+
+  <!-- No supercharger -->
+  <numboostspeeds> 0 </numboostspeeds>
+
+  <!-- Instant throttle response (electric motor characteristic) -->
+  <ratedpower>       1.5 </ratedpower>
+  <ratedrpm>      8000 </ratedrpm>
+  <ratedaltitude> 1000 </ratedaltitude>
+
+  <!-- Fuel consumption (set very low for electric) -->
+  <bsfc unit="LBS/HP*HR"> 0.01 </bsfc>
+
+  <!-- Dynamic friction (very low for electric motor) -->
+  <static-friction unit="HP"> 0.01 </static-friction>
+
+</piston_engine>

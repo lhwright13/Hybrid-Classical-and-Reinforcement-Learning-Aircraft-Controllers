@@ -10,6 +10,7 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
+from controllers.utils.pid_utils import create_pid_config
 
 
 def wrap_angle(angle: float) -> float:
@@ -50,41 +51,22 @@ class AttitudeAgent(BaseAgent):
         self.config = config
 
         # Create C++ PID configurations for angle control (outer loop)
-        roll_angle_config = acb.PIDConfig()
-        roll_angle_config.gains = acb.PIDGains(
-            config.roll_angle_gains.kp,
-            config.roll_angle_gains.ki,
-            config.roll_angle_gains.kd
+        # Output is rate command (rad/s), use config rate limits
+        roll_angle_config = create_pid_config(
+            config.roll_angle_gains,
+            output_min=-np.radians(config.max_roll_rate),
+            output_max=np.radians(config.max_roll_rate)
         )
-        roll_angle_config.integral_min = -config.roll_angle_gains.i_limit
-        roll_angle_config.integral_max = config.roll_angle_gains.i_limit
-        # Output is rate command (rad/s), use config limit
-        roll_angle_config.output_min = -np.radians(config.max_roll_rate)
-        roll_angle_config.output_max = np.radians(config.max_roll_rate)
-
-        pitch_angle_config = acb.PIDConfig()
-        pitch_angle_config.gains = acb.PIDGains(
-            config.pitch_angle_gains.kp,
-            config.pitch_angle_gains.ki,
-            config.pitch_angle_gains.kd
+        pitch_angle_config = create_pid_config(
+            config.pitch_angle_gains,
+            output_min=-np.radians(config.max_pitch_rate),
+            output_max=np.radians(config.max_pitch_rate)
         )
-        pitch_angle_config.integral_min = -config.pitch_angle_gains.i_limit
-        pitch_angle_config.integral_max = config.pitch_angle_gains.i_limit
-        # Use config limit for pitch rate command
-        pitch_angle_config.output_min = -np.radians(config.max_pitch_rate)
-        pitch_angle_config.output_max = np.radians(config.max_pitch_rate)
-
-        yaw_angle_config = acb.PIDConfig()
-        yaw_angle_config.gains = acb.PIDGains(
-            config.yaw_gains.kp,
-            config.yaw_gains.ki,
-            config.yaw_gains.kd
+        yaw_angle_config = create_pid_config(
+            config.yaw_gains,
+            output_min=-np.radians(config.max_yaw_rate),
+            output_max=np.radians(config.max_yaw_rate)
         )
-        yaw_angle_config.integral_min = -config.yaw_gains.i_limit
-        yaw_angle_config.integral_max = config.yaw_gains.i_limit
-        # Use config limit for yaw rate command
-        yaw_angle_config.output_min = -np.radians(config.max_yaw_rate)
-        yaw_angle_config.output_max = np.radians(config.max_yaw_rate)
 
         # Create multi-axis PID controller for angles (C++)
         self.angle_controller = acb.MultiAxisPIDController(

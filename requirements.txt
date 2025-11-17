@@ -1,10 +1,13 @@
-# Core dependencies
-numpy>=1.20.0
+# Multi-Level Flight Control - Core Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core Scientific Computing
+numpy>=1.20.0,<2.0.0
 scipy>=1.7.0
 dataclasses-json>=0.5.0
 pyyaml>=6.0.0
 
-# Geodetic conversion (for accurate NED coordinates)
+# Geodetic Conversion (for accurate NED coordinates)
 pyproj>=3.3.0
 
 # Visualization
@@ -13,45 +16,27 @@ plotly>=5.0.0
 pyvista>=0.35.0
 kaleido>=0.2.0  # For static image export from plotly
 
-# Data handling
+# Interactive GUI
+pygame>=2.1.0
+
+# Data Handling & Logging
 pandas>=1.3.0
 h5py>=3.0.0
 
-# GUI
-dash>=2.0.0
-dash-bootstrap-components>=1.0.0
+# Reinforcement Learning (optional - for learned controllers)
+stable-baselines3[extra]>=2.0.0
+sb3-contrib>=2.0.0  # For RecurrentPPO
+gymnasium>=0.28.0
+torch>=1.13.0  # PyTorch (CPU or GPU version)
 
-# Alternative GUI option (pick one)
-# streamlit>=1.0.0
+# Experiment Tracking
+tensorboard>=2.11.0
 
-# JSBSim simulation (if available via pip, otherwise manual install)
-# jsbsim>=1.1.0
-
-# Hardware interface
-pyserial>=3.5
-# pymavlink>=2.4.0  # Optional, for MAVLink protocol
-
-# RL Training (install with extras for full functionality)
-# stable-baselines3[extra]>=2.0.0
-# gymnasium>=0.28.0
-
-# Multi-agent RL (optional)
-# ray[rllib]>=2.0.0
-# pettingzoo>=1.22.0
-
-# Experiment tracking (optional)
-# wandb>=0.13.0
-# tensorboard>=2.11.0
-# optuna>=3.0.0
-
-# C++ bindings
+# C++ Bindings
 pybind11>=2.9.0
 
-# Testing
-pytest>=7.0.0
-pytest-cov>=3.0.0
+# Physics Validation (optional - for JSBSim comparison)
+jsbsim>=1.1.0
 
-# Development
-black>=22.0.0
-flake8>=4.0.0
-mypy>=0.950
+# Hardware Interface (optional - for Phase 6)
+pyserial>=3.5

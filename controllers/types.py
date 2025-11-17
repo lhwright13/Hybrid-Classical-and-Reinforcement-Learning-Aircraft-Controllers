@@ -319,6 +319,17 @@ class ControllerConfig:
         default_factory=lambda: PIDGains(kp=0.3, ki=0.05, kd=0.00015)
     )
 
+    # HSA (Heading/Speed/Altitude) PID gains
+    heading_gains: PIDGains = field(
+        default_factory=lambda: PIDGains(kp=1.2, ki=0.08, kd=0.3)
+    )
+    speed_gains: PIDGains = field(
+        default_factory=lambda: PIDGains(kp=0.1, ki=0.01, kd=0.0)
+    )
+    altitude_gains: PIDGains = field(
+        default_factory=lambda: PIDGains(kp=0.25, ki=0.02, kd=0.15)
+    )
+
     # Limits
     max_roll: float = 30.0  # degrees for angle mode
     max_pitch: float = 30.0  # degrees for angle mode

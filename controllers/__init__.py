@@ -21,6 +21,9 @@ from controllers.attitude_agent import AttitudeAgent
 from controllers.hsa_agent import HSAAgent
 from controllers.waypoint_agent import WaypointAgent
 
+# Mission planning
+from controllers.mission_planner import MissionPlanner, MissionState
+
 __all__ = [
     # Types
     "ControlMode",
@@ -39,4 +42,7 @@ __all__ = [
     "AttitudeAgent",     # Level 3: Attitude control (outer loop)
     "HSAAgent",          # Level 2: HSA control
     "WaypointAgent",     # Level 1: Waypoint navigation
+    # Mission planning
+    "MissionPlanner",
+    "MissionState",
 ]

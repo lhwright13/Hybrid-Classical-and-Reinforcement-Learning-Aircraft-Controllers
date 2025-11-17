@@ -1,0 +1,40 @@
+# Multi-Level Flight Control - Development Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Core dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=3.0.0
+pytest-mock>=3.10.0
+pytest-xdist>=3.0.0  # Parallel test execution
+pytest-timeout>=2.1.0
+
+# Code Quality
+black>=22.0.0  # Code formatting
+flake8>=4.0.0  # Linting
+mypy>=0.950    # Type checking
+isort>=5.10.0  # Import sorting
+
+# Documentation
+sphinx>=4.5.0
+sphinx-rtd-theme>=1.0.0
+myst-parser>=0.18.0  # Markdown support in Sphinx
+
+# Performance Analysis
+py-spy>=0.3.14  # Profiling
+memory-profiler>=0.60.0
+
+# Experiment Tracking (optional)
+wandb>=0.13.0  # Weights & Biases
+optuna>=3.0.0  # Hyperparameter optimization
+
+# Notebook Support (optional)
+jupyter>=1.0.0
+ipykernel>=6.15.0
+nbconvert>=7.0.0
+
+# Additional Tools
+pre-commit>=2.20.0  # Git hooks for code quality
+commitizen>=2.40.0   # Conventional commits helper

@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!--
+  Direct thrust propeller model for RC plane
+  Max thrust: 50 N = 11.24 lbf
+
+  Matches simplified_6dof.py: max_thrust = 50.0 N
+
+  This is a simplified fixed-pitch propeller with direct thrust mapping.
+-->
+
+<direct name="direct_thrust">
+
+  <!--
+    Direct thruster type: thrust proportional to throttle setting
+    No propeller aerodynamics, just direct thrust output
+
+    Formula: Thrust = throttle × max_thrust
+    where throttle ∈ [0, 1]
+  -->
+
+  <!-- Location: Center of aircraft (no moment arm) -->
+  <location unit="IN">
+    <x>  0.0 </x>  <!-- Center -->
+    <y>  0.0 </y>  <!-- Centerline -->
+    <z>  0.0 </z>  <!-- Centerline -->
+  </location>
+
+  <!-- Thrust direction: +X (forward in body frame) -->
+  <orient unit="DEG">
+    <pitch> 0.0 </pitch>
+    <roll>  0.0 </roll>
+    <yaw>   0.0 </yaw>
+  </orient>
+
+  <!--
+    Thrust coefficient
+    This gives max thrust of ~50N at full throttle
+    JSBSim direct thruster uses: Thrust = C × density × velocity²
+    But for low-speed RC, we want nearly constant thrust
+    So we use a large constant thrust term
+  -->
+
+  <!-- Max static thrust: 50N = 11.24 lbf -->
+  <staticthrust unit="LBS"> 11.24 </staticthrust>
+
+  <!-- Propeller efficiency vs advance ratio (J = V/nD) -->
+  <!-- For simplicity, assume constant efficiency -->
+  <table name="CT_vs_J" type="internal">
+    <tableData>
+      <!-- J      CT     -->
+         0.0    1.0
+         0.5    0.95
+         1.0    0.85
+         1.5    0.70
+         2.0    0.50
+         2.5    0.30
+         3.0    0.10
+    </tableData>
+  </table>
+
+  <!-- Power coefficient (not used for direct thruster, but required) -->
+  <table name="CP_vs_J" type="internal">
+    <tableData>
+      <!-- J      CP     -->
+         0.0    0.3
+         1.0    0.3
+         2.0    0.3
+         3.0    0.3
+    </tableData>
+  </table>
+
+  <!-- Propeller sense (1 = clockwise, -1 = counterclockwise) -->
+  <sense> 1 </sense>
+
+  <!-- Propeller pitch (not used for direct thruster) -->
+  <p_factor> 0.0 </p_factor>
+
+</direct>

@@ -42,11 +42,11 @@ class AircraftParams:
     wing_span: float = 2.0  # m
     chord: float = 0.25  # m (mean aerodynamic chord)
 
-    # Aerodynamic coefficients (simplified)
-    cl_0: float = 0.3  # Zero-alpha lift coefficient
-    cl_alpha: float = 4.0  # Lift curve slope (1/rad)
-    cd_0: float = 0.03  # Parasitic drag coefficient
-    cd_alpha2: float = 0.1  # Induced drag coefficient
+    # Aerodynamic coefficients (tuned to match JSBSim)
+    cl_0: float = 0.35  # Zero-alpha lift coefficient (increased for better lift)
+    cl_alpha: float = 5.0  # Lift curve slope (1/rad) - matches theory: 2π/(1+2/AR) for AR=8
+    cd_0: float = 0.025  # Parasitic drag coefficient (reduced - cleaner aircraft)
+    cd_alpha2: float = 0.05  # Induced drag coefficient - matches CL²/(π×AR×e) with AR=8, e=0.8
 
     # Control effectiveness - CONSERVATIVE for stability
     cl_elevator: float = 0.5  # Lift change per elevator deflection (1/rad)
@@ -200,6 +200,13 @@ class Simplified6DOF:
         # Altitude (positive up, NED has down positive)
         altitude = -position[2]
 
+        # Compute heading from ground velocity in NED frame
+        # Transform body velocity to NED frame
+        velocity_ned = self._body_to_ned(velocity, attitude)
+        # Heading: arctan2(east, north) in NED convention
+        # 0° = North, 90° = East, 180° = South, 270° = West
+        heading = np.arctan2(velocity_ned[1], velocity_ned[0])
+
         return AircraftState(
             time=self.time,
             position=position,
@@ -207,7 +214,8 @@ class Simplified6DOF:
             attitude=attitude,
             angular_rate=angular_rate,
             airspeed=airspeed,
-            altitude=altitude
+            altitude=altitude,
+            heading=heading
         )
 
     def _dynamics(self, state: np.ndarray, controls: ControlSurfaces) -> np.ndarray:
@@ -274,7 +282,12 @@ class Simplified6DOF:
         fz_aero = -drag * np.sin(alpha) - lift * np.cos(alpha)
 
         # === Thrust ===
-        thrust = self.params.max_thrust * controls.throttle
+        # Propeller thrust model: thrust decreases linearly with airspeed
+        # This matches propeller physics where efficiency drops at high speed
+        V_ref = 15.0  # m/s - reference velocity (tuned to match JSBSim)
+        # Linear decay is more aggressive than sqrt, better matches JSBSim behavior
+        thrust_factor = V_ref / max(airspeed, V_ref)
+        thrust = self.params.max_thrust * controls.throttle * thrust_factor
         fx_thrust = thrust
         fy_thrust = 0.0
         fz_thrust = 0.0

@@ -2,10 +2,26 @@
 
 ## Overview
 
-This document specifies the implementation of classical PID-based flight controllers for all 4 control levels. These controllers serve as:
+This document specifies the implementation of classical PID-based flight controllers for all **5 control levels**. These controllers serve as:
 1. **Baselines** for RL agent comparison
 2. **Safety fallbacks** for hybrid agents
 3. **Building blocks** extracted from dRehmFlight
+
+## 5-Level Cascaded Control Architecture
+
+The system implements a **cascaded control** architecture matching industry-standard flight controllers:
+
+```
+Level 1: Waypoint → Level 2: HSA → Level 3: Attitude (Angle) → Level 4: Rate → Level 5: Surface
+                                          (Outer Loop)          (Inner Loop)    (Mixer)
+```
+
+**Key Design**:
+- **Level 3 (Angle)**: Outer loop, commands desired angles, outputs rate commands
+- **Level 4 (Rate)**: Inner loop, tracks rate commands, outputs surface deflections
+- **Level 5 (Surface)**: Pure actuation, applies commands via mixer
+
+This matches Betaflight, ArduPilot, PX4, and dRehmFlight architectures.
 
 ## dRehmFlight Integration
 
@@ -14,18 +30,52 @@ This document specifies the implementation of classical PID-based flight control
 We extract proven PID algorithms from dRehmFlight and adapt them to our multi-level architecture.
 
 **Source Files** (from dRehmFlight):
-- `controlANGLE()` - Angle mode PID
-- `controlRATE()` - Rate mode PID
+- `controlANGLE()` - Angle mode PID (outer loop)
+- `controlRATE()` - Rate mode PID (inner loop)
 - `controlMixer()` - Vehicle-specific mixing
 - PID gains and tuning parameters
 
 **Adaptation Strategy**:
 1. Extract C++ PID core (performance-critical)
 2. Wrap in Pybind11 for Python access
-3. Create Python controllers for Levels 1-3
-4. Keep Level 4 (PID + Mixer) in C++
+3. Create Python controllers for Levels 1-2
+4. Implement Level 3 (angle PID) in Python with C++ backend
+5. Keep Level 4 (rate PID) in C++ for high-frequency control
+6. Keep Level 5 (mixer) in C++
 
-## Level 4: PID Controllers & Mixer (C++)
+## Level 5: Control Mixer (C++)
+
+**Purpose**: Vehicle-specific mixing, maps abstract surfaces to actuators
+
+**File**: `core/mixer.cpp`
+
+```cpp
+class ControlMixer {
+public:
+    ControlMixer(const MixerConfig& config);
+
+    ActuatorCommands mix(const ControlSurfaces& surfaces);
+
+private:
+    MixerConfig config_;
+};
+
+// Fixed-wing mixer
+ActuatorCommands ControlMixer::mix(const ControlSurfaces& surfaces) {
+    ActuatorCommands commands;
+
+    // Direct mapping for conventional aircraft
+    commands.servo_elevator = surfaces.elevator;
+    commands.servo_aileron_left = surfaces.aileron;
+    commands.servo_aileron_right = -surfaces.aileron;  // Opposite
+    commands.servo_rudder = surfaces.rudder;
+    commands.motor_throttle = surfaces.throttle;
+
+    return commands;
+}
+```
+
+## Level 4: Rate Controllers (C++)
 
 ### PID Controller Implementation
 

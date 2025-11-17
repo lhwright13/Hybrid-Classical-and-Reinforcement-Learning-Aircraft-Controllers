@@ -1,0 +1,123 @@
+# IMPROVED PPO + LSTM Training Configuration for Rate Controller
+#
+# Key improvements over original config:
+# - More gradual curriculum progression
+# - Higher entropy coefficient for better exploration
+# - More frequent evaluation
+# - Lower learning rate for later phases
+# - Better episode length for learning
+
+# Environment settings
+environment:
+  difficulty: "easy"  # Start with easy
+  episode_length: 10.0  # seconds
+  dt: 0.02  # 50 Hz control rate
+  command_type: "step"  # step, ramp, sine, random
+
+# Training settings
+training:
+  total_timesteps: 1000000  # 1M steps
+  n_envs: 8  # Parallel environments (optimized for 10 CPU cores)
+  eval_freq: 5000  # Evaluate MORE frequently (was 10000)
+  save_freq: 25000  # Save checkpoints more often (was 50000)
+  log_interval: 10  # Log every N episodes
+
+# Curriculum learning phases - MORE GRADUAL PROGRESSION
+curriculum:
+  enabled: true
+  phases:
+    # Phase 1: Easy - Build foundation (40% of training)
+    - name: "easy_step"
+      difficulty: "easy"
+      timesteps: 400000  # Increased from 300k
+      command_type: "step"
+      description: "Simple single-axis step commands"
+
+    # Phase 2: Medium with step commands (30% of training)
+    - name: "medium_step"
+      difficulty: "medium"
+      timesteps: 300000  # Keep multi-axis learning longer
+      command_type: "step"
+      description: "Multi-axis step commands"
+
+    # Phase 3: Medium with smooth commands (15% of training)
+    - name: "medium_sine"
+      difficulty: "medium"
+      timesteps: 150000  # NEW: Gradual bridge to time-varying
+      command_type: "sine"
+      description: "Smooth sinusoidal tracking"
+
+    # Phase 4: Hard with mixed commands (10% of training)
+    - name: "hard_mixed"
+      difficulty: "hard"
+      timesteps: 100000  # Reduced from 300k
+      command_type: "step"  # Start hard with familiar commands
+      description: "Aggressive step commands"
+
+    # Phase 5: Hard with random (5% of training)
+    - name: "hard_random"
+      difficulty: "hard"
+      timesteps: 50000  # Short final polish phase
+      command_type: "random"
+      description: "Random walk tracking (most difficult)"
+
+# PPO Hyperparameters - IMPROVED FOR STABILITY
+ppo:
+  learning_rate: 3.0e-4  # Start here, will be reduced in later phases
+  n_steps: 1024  # Steps per environment per update (reduced for more frequent updates with 8 envs)
+  batch_size: 128  # Increased for better gradient estimates with more parallel data
+  n_epochs: 10
+  gamma: 0.99  # Discount factor
+  gae_lambda: 0.95  # GAE parameter
+  clip_range: 0.2
+  clip_range_vf: null  # No value function clipping
+  ent_coef: 0.05  # INCREASED entropy (was 0.01) - more exploration
+  vf_coef: 0.5  # Value function coefficient
+  max_grad_norm: 0.5
+  use_sde: false  # State-dependent exploration
+  sde_sample_freq: -1
+
+# LSTM Architecture
+lstm:
+  enabled: true
+  lstm_hidden_size: 256
+  n_lstm_layers: 2
+  features_dim: 128
+
+# Alternative: MLP Architecture (if lstm.enabled = false)
+mlp:
+  net_arch: [256, 128, 64]
+
+# Normalization
+normalize:
+  obs: false  # Don't normalize observations (already scaled)
+  reward: false  # Don't normalize rewards
+
+# Model paths
+paths:
+  model_save_dir: "learned_controllers/models/checkpoints_improved"
+  tensorboard_log: "learned_controllers/logs/tensorboard_improved"
+  best_model_path: "learned_controllers/models/best_rate_controller_improved"
+
+# Evaluation - MATCHES TRAINING CONFIG
+evaluation:
+  n_eval_episodes: 10
+  deterministic: true
+  render: false
+  # Evaluation will use same difficulty/command_type as current training phase
+
+# Random seed
+seed: 42
+
+# Learning rate schedule (optional - for future implementation)
+# lr_schedule:
+#   - phase: "easy_step"
+#     lr: 3.0e-4
+#   - phase: "medium_step"
+#     lr: 2.0e-4
+#   - phase: "medium_sine"
+#     lr: 1.0e-4
+#   - phase: "hard_mixed"
+#     lr: 5.0e-5
+#   - phase: "hard_random"
+#     lr: 3.0e-5

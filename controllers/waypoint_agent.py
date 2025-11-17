@@ -48,6 +48,10 @@ class WaypointAgent(BaseAgent):
         # Proportional navigation constant (for PN guidance)
         self.N = 3.0  # Typical range 3-5
 
+        # Heading command smoothing (disabled for waypoint navigation)
+        self.last_heading_cmd = None
+        self.max_heading_rate = None  # No rate limiting - allow sharp turns at waypoints
+
     def get_control_level(self) -> ControlMode:
         """Return control level.
 
@@ -59,7 +63,8 @@ class WaypointAgent(BaseAgent):
     def compute_action(
         self,
         command: ControlCommand,
-        state: AircraftState
+        state: AircraftState,
+        dt: float = 0.01
     ) -> ControlSurfaces:
         """Compute surfaces from waypoint commands.
 
@@ -73,6 +78,7 @@ class WaypointAgent(BaseAgent):
         Args:
             command: Waypoint control command
             state: Current aircraft state
+            dt: Time step in seconds (default 0.01 for 100 Hz)
 
         Returns:
             ControlSurfaces: Control surface deflections
@@ -101,11 +107,56 @@ class WaypointAgent(BaseAgent):
             # Line-of-sight guidance: point directly at waypoint
             heading_cmd = np.arctan2(error[1], error[0])  # arctan2(east, north)
 
-        elif self.guidance_type == 'PN':
-            # Proportional navigation: more aggressive
-            # TODO: Implement PN guidance
-            # For now, fall back to LOS
-            heading_cmd = np.arctan2(error[1], error[0])
+            # Turn anticipation: Start banking early to reduce overshoot
+            # Estimate turn radius at current speed and max bank (20°)
+            V = max(state.airspeed, 10.0)  # Use at least 10 m/s for calculation
+            max_bank = np.radians(20)
+            turn_radius = V**2 / (9.81 * np.tan(max_bank))  # R = V²/(g·tan(φ))
+
+            # Compute heading change required
+            heading_error = heading_cmd - state.heading
+            heading_error = np.arctan2(np.sin(heading_error), np.cos(heading_error))  # Wrap
+
+            # If we're close to waypoint and need to turn, start turning early
+            # Turn anticipation distance = turn_radius (conservative)
+            anticipation_dist = turn_radius * abs(heading_error) / np.radians(90)  # Scale with turn angle
+
+            if horizontal_distance < anticipation_dist and abs(heading_error) > np.radians(20):
+                # We're in turn anticipation zone - start banking NOW
+                # Add a "lead point" ahead of the waypoint in the turn direction
+                lead_angle = heading_cmd + np.sign(heading_error) * np.radians(30)
+                # Blend between direct LOS and lead angle based on distance
+                blend = 1.0 - (horizontal_distance / anticipation_dist)
+                heading_cmd = heading_cmd + blend * np.radians(30) * np.sign(heading_error)
+                heading_cmd = np.arctan2(np.sin(heading_cmd), np.cos(heading_cmd))  # Wrap
+
+        elif self.guidance_type == 'PP' or self.guidance_type == 'PURE_PURSUIT':
+            # Pure Pursuit guidance: look ahead along path to waypoint
+            # This prevents spiral divergence by accounting for turn radius
+
+            # Lookahead distance: proportional to airspeed
+            # L = k * V, where k is lookahead time (2.5 seconds balanced)
+            # Must be >= turn radius to prevent overshoot oscillations
+            lookahead_time = 2.5  # seconds
+            lookahead_dist = lookahead_time * max(state.airspeed, 10.0)
+            # Cap max lookahead to prevent excessive look-ahead during speed spikes
+            lookahead_dist = min(lookahead_dist, 150.0)
+
+            if horizontal_distance <= lookahead_dist:
+                # Close to waypoint: point directly at it
+                heading_cmd = np.arctan2(error[1], error[0])
+            else:
+                # Far from waypoint: find "carrot" point along path
+                # Carrot is lookahead_dist away from current position toward waypoint
+
+                # Unit vector toward waypoint (horizontal only)
+                direction = error[:2] / horizontal_distance
+
+                # Carrot position (NED frame, relative to current position)
+                carrot = direction * lookahead_dist
+
+                # Heading to carrot
+                heading_cmd = np.arctan2(carrot[1], carrot[0])
 
         else:
             # Default to LOS
@@ -113,6 +164,24 @@ class WaypointAgent(BaseAgent):
 
         # Wrap heading to [-π, π]
         heading_cmd = np.arctan2(np.sin(heading_cmd), np.cos(heading_cmd))
+
+        # === Heading Rate Limiting ===
+        # Optional: Prevent instantaneous heading changes at waypoint corners
+        if self.max_heading_rate is not None and self.last_heading_cmd is not None:
+            # Compute heading change (wrap to [-π, π])
+            heading_change = heading_cmd - self.last_heading_cmd
+            heading_change = np.arctan2(np.sin(heading_change), np.cos(heading_change))
+
+            # Limit rate of change
+            max_change = self.max_heading_rate * dt
+            if abs(heading_change) > max_change:
+                # Rate limit the heading command
+                heading_cmd = self.last_heading_cmd + np.sign(heading_change) * max_change
+                # Wrap result
+                heading_cmd = np.arctan2(np.sin(heading_cmd), np.cos(heading_cmd))
+
+        # Store for next iteration (for rate limiting if enabled)
+        self.last_heading_cmd = heading_cmd
 
         # === Altitude Command ===
         # Desired altitude from waypoint
@@ -134,7 +203,8 @@ class WaypointAgent(BaseAgent):
         )
 
         # Inner loop: HSA → surfaces (Level 2)
-        surfaces = self.hsa_agent.compute_action(hsa_cmd, state)
+        # Pass dt for consistent timing across all control levels
+        surfaces = self.hsa_agent.compute_action(hsa_cmd, state, dt)
 
         return surfaces
 
@@ -158,6 +228,7 @@ class WaypointAgent(BaseAgent):
 
     def reset(self):
         """Reset agent state."""
+        self.last_heading_cmd = None
         self.hsa_agent.reset()
 
     def __repr__(self) -> str:

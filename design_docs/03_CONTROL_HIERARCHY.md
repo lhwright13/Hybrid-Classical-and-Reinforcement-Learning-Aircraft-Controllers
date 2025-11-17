@@ -2,7 +2,9 @@
 
 ## Overview
 
-This document specifies the **4-level control hierarchy** that forms the core of the system. Each level represents a different abstraction of aircraft control, and agents can command at ANY level.
+This document specifies the **5-level control hierarchy** that forms the core of the system. Each level represents a different abstraction of aircraft control, and agents can command at ANY level.
+
+The 5-level architecture separates angle control (Level 3) from rate control (Level 4), matching industry-standard flight controller designs (Betaflight, ArduPilot, PX4, dRehmFlight).
 
 ## Control Level Hierarchy
 
@@ -18,40 +20,67 @@ graph TB
     subgraph "Level 2: HSA Control"
         L2[HSA Input<br/>heading, speed, altitude]
         L2Ctrl[HSA Controller<br/>Heading/Speed/Alt Hold]
-        L2Out[Attitude Commands<br/>roll, pitch, yaw_rate, throttle]
+        L2Out[Attitude Commands<br/>roll, pitch, yaw angles]
         L2 --> L2Ctrl --> L2Out
     end
 
-    subgraph "Level 3: Attitude Control"
-        L3[Stick Input<br/>roll, pitch, yaw, throttle]
-        L3Ctrl[Attitude Controller<br/>Angle or Rate Mode]
+    subgraph "Level 3: Attitude Control (Angle Mode)"
+        L3[Attitude Input<br/>roll, pitch, yaw angles]
+        L3Ctrl[Angle PID Controllers<br/>Stabilized Mode]
         L3Out[Rate Commands<br/>p_cmd, q_cmd, r_cmd]
         L3 --> L3Ctrl --> L3Out
     end
 
-    subgraph "Level 4: Surface Control"
-        L4[Surface Input<br/>elevator, aileron, rudder, throttle]
-        L4PID[PID Controllers C++<br/>Rate Stabilization]
-        L4Mix[Control Mixer<br/>Vehicle-Specific]
-        L4Out[Actuator Commands<br/>PWM values]
-        L4 --> L4PID --> L4Mix --> L4Out
+    subgraph "Level 4: Rate Control"
+        L4[Rate Input<br/>p, q, r angular rates]
+        L4PID[Rate PID Controllers C++<br/>Inner Loop Stabilization]
+        L4Out[Surface Commands<br/>elevator, aileron, rudder]
+        L4 --> L4PID --> L4Out
+    end
+
+    subgraph "Level 5: Surface Control"
+        L5[Surface Input<br/>elevator, aileron, rudder, throttle]
+        L5Mix[Control Mixer<br/>Vehicle-Specific]
+        L5Out[Actuator Commands<br/>PWM values]
+        L5 --> L5Mix --> L5Out
     end
 
     L1Out -.-> L2
     L2Out -.-> L3
     L3Out -.-> L4
+    L4Out -.-> L5
 
-    L4Out --> Aircraft[Aircraft Dynamics]
+    L5Out --> Aircraft[Aircraft Dynamics]
     Aircraft --> Sensors[Sensors]
     Sensors --> Agent[Agent]
     Agent -.->|Commands at chosen level| L1
     Agent -.->|Commands at chosen level| L2
     Agent -.->|Commands at chosen level| L3
     Agent -.->|Commands at chosen level| L4
+    Agent -.->|Commands at chosen level| L5
 
     style Agent fill:#f96,stroke:#333,stroke-width:4px
     style L4PID fill:#66f,stroke:#333,stroke-width:2px
+    style L3Ctrl fill:#66f,stroke:#333,stroke-width:2px
 ```
+
+## Cascaded Control Architecture
+
+The 5-level hierarchy implements a **cascaded control loop** structure:
+
+```
+Waypoint → HSA → Attitude Angles → Body Rates → Surfaces → Aircraft
+(Level 1)  (L2)      (L3)            (L4)         (L5)
+```
+
+Each level forms an outer loop for the level below:
+- **Level 3 (Angle)**: Outer loop, commands desired angles
+- **Level 4 (Rate)**: Inner loop, tracks angle commands via rate control
+- **Level 5 (Surface)**: Direct actuation (no PID)
+
+This matches how real flight controllers work (Betaflight, PX4, ArduPilot).
+
+---
 
 ## Level 1: Waypoint Navigation
 
@@ -228,13 +257,13 @@ observation = [
 ```
 
 ### Controller Output
-Attitude commands (fed to Level 3):
+Attitude angle commands (fed to Level 3):
 ```python
 {
-    "roll": float,         # radians or normalized [-1, 1]
-    "pitch": float,        # radians or normalized [-1, 1]
-    "yaw_rate": float,     # rad/s or normalized [-1, 1]
-    "throttle": float      # [0, 1]
+    "roll_angle": float,       # radians (desired bank angle)
+    "pitch_angle": float,      # radians (desired pitch angle)
+    "yaw_angle": float,        # radians (desired heading)
+    "throttle": float          # [0, 1]
 }
 ```
 
@@ -339,17 +368,19 @@ def compute_reward_level2(state, hsa_cmd):
 
 ---
 
-## Level 3: Stick & Throttle (Attitude Control)
+## Level 3: Attitude Control (Angle Mode)
 
 ### Purpose
-Mid-low abstraction. RC-style piloting with attitude stabilization.
+Mid-level abstraction. Commands desired attitude angles (roll, pitch, yaw).
+
+**NEW in 5-level design**: Level 3 is now dedicated to **angle mode** only. It forms the outer loop of a cascaded controller, with Level 4 (rate control) as the inner loop.
 
 ### Agent Action Space
 ```python
 action = {
-    "roll_stick": float,      # [-1, 1] normalized
-    "pitch_stick": float,     # [-1, 1] normalized
-    "yaw_stick": float,       # [-1, 1] normalized
+    "roll_angle": float,      # radians, desired bank angle
+    "pitch_angle": float,     # radians, desired pitch angle
+    "yaw_angle": float,       # radians, desired heading
     "throttle": float         # [0, 1]
 }
 ```
@@ -379,7 +410,7 @@ observation = [
 ```
 
 ### Controller Output
-Rate commands (fed to Level 4 PID):
+Rate commands (fed to Level 4):
 ```python
 {
     "p_cmd": float,        # rad/s, roll rate command
@@ -389,51 +420,45 @@ Rate commands (fed to Level 4 PID):
 }
 ```
 
-### Attitude Controller Modes
+### Attitude Controller (Angle Mode)
 
-#### Angle Mode (Stabilized)
+Level 3 implements **angle mode** with PID on attitude angles:
+
 ```python
-def attitude_controller_angle_mode(stick_input, current_attitude, current_rates):
-    # Map stick to desired angles
-    roll_des = stick_input.roll * np.radians(45)   # ±45° max
-    pitch_des = stick_input.pitch * np.radians(30) # ±30° max
-    yaw_rate_des = stick_input.yaw * np.radians(90) # ±90°/s max
+def attitude_controller_angle_mode(angle_cmd, current_attitude, current_rates, gains):
+    """Angle mode: outer loop controls angles, outputs rate commands."""
 
     # Angle errors
-    roll_error = roll_des - current_attitude.roll
-    pitch_error = pitch_des - current_attitude.pitch
+    roll_error = angle_cmd.roll - current_attitude.roll
+    pitch_error = angle_cmd.pitch - current_attitude.pitch
+    yaw_error = wrap_angle(angle_cmd.yaw - current_attitude.yaw)
 
-    # PID on angles → rate commands
-    p_cmd = Kp_roll * roll_error - Kd_roll * current_rates.p
-    q_cmd = Kp_pitch * pitch_error - Kd_pitch * current_rates.q
-    r_cmd = yaw_rate_des  # Direct rate command for yaw
+    # PID on angles → rate commands (outer loop)
+    p_cmd = gains.roll_kp * roll_error - gains.roll_kd * current_rates.p
+    q_cmd = gains.pitch_kp * pitch_error - gains.pitch_kd * current_rates.q
+    r_cmd = gains.yaw_kp * yaw_error - gains.yaw_kd * current_rates.r
 
-    return p_cmd, q_cmd, r_cmd
-```
-
-#### Rate Mode (Acro)
-```python
-def attitude_controller_rate_mode(stick_input, max_rates):
-    # Direct mapping to rate commands
-    p_cmd = stick_input.roll * max_rates.roll    # e.g., ±180°/s
-    q_cmd = stick_input.pitch * max_rates.pitch  # e.g., ±180°/s
-    r_cmd = stick_input.yaw * max_rates.yaw      # e.g., ±90°/s
+    # Limit rate commands
+    p_cmd = np.clip(p_cmd, -np.radians(180), np.radians(180))
+    q_cmd = np.clip(q_cmd, -np.radians(180), np.radians(180))
+    r_cmd = np.clip(r_cmd, -np.radians(90), np.radians(90))
 
     return p_cmd, q_cmd, r_cmd
 ```
+
+**Key Point**: Level 3 does NOT directly command surfaces. It commands rates (p, q, r), which are then tracked by Level 4's rate controllers.
 
 ### Use Cases
-- Manual flight (teleoperation)
-- Acrobatic maneuvers
-- Aggressive flight in cluttered environments
-- Human demonstration collection
-- Fine-grained control
+- Stabilized flight (hold attitude)
+- Smooth maneuvers
+- Formation flight (maintain relative attitude)
+- Beginner-friendly control
 
 ### RL Training Considerations
 
 **Challenges:**
-- Requires understanding of aircraft dynamics
-- Must learn coordinated maneuvers (e.g., coordinated turns)
+- Must learn appropriate angle commands for desired maneuvers
+- Indirect control (angles → rates → surfaces)
 
 **Reward Function Example:**
 ```python
@@ -456,21 +481,150 @@ def compute_reward_level3(state, action, target_attitude):
 ```
 
 **Training Tips:**
-- Start in rate mode (easier), progress to angle mode
+- Start with simple tasks (hold level)
 - Use teacher forcing (classical controller demonstrations)
-- Reward smooth actions heavily
+- Reward smooth angle commands
 
 ### Performance Metrics
 - Attitude tracking error (degrees RMS)
-- Control smoothness (action variance)
-- Task completion (e.g., fly through gates)
+- Settling time
+- Overshoot percentage
 
 ---
 
-## Level 4: Direct Surface Control
+## Level 4: Rate Control
+
+### Purpose
+Inner loop rate control. Commands desired angular rates (p, q, r).
+
+**NEW in 5-level design**: Level 4 is the **inner loop** of the cascaded controller. It receives rate commands from Level 3 and outputs surface deflections.
+
+### Agent Action Space
+```python
+action = {
+    "roll_rate": float,       # rad/s, desired p (roll rate)
+    "pitch_rate": float,      # rad/s, desired q (pitch rate)
+    "yaw_rate": float,        # rad/s, desired r (yaw rate)
+    "throttle": float         # [0, 1]
+}
+```
+
+### Observation Space (Level 4 Agents)
+```python
+observation = [
+    # Angular rates (primary feedback)
+    roll_rate,                 # rad/s (p)
+    pitch_rate,                # rad/s (q)
+    yaw_rate,                  # rad/s (r)
+
+    # Attitude (for awareness)
+    roll,                      # radians
+    pitch,                     # radians
+    yaw,                       # radians
+
+    # Velocity
+    airspeed,                  # m/s
+    vertical_speed,            # m/s
+
+    # Rate errors
+    p_error,                   # rad/s
+    q_error,                   # rad/s
+    r_error,                   # rad/s
+]
+# Shape: (11,)
+```
+
+### Controller Output
+Surface deflection commands (fed to Level 5):
+```python
+{
+    "elevator": float,     # [-1, 1], pitch control
+    "aileron": float,      # [-1, 1], roll control
+    "rudder": float,       # [-1, 1], yaw control
+    "throttle": float      # [0, 1], pass-through
+}
+```
+
+### Rate Controller (C++ PID)
+
+Level 4 implements **rate mode** with high-frequency PID on angular rates:
+
+```python
+def rate_controller(rate_cmd, current_rates, gains):
+    """Rate mode: inner loop controls angular rates, outputs surfaces."""
+
+    # Rate errors
+    p_error = rate_cmd.p - current_rates.p
+    q_error = rate_cmd.q - current_rates.q
+    r_error = rate_cmd.r - current_rates.r
+
+    # PID on rates → surface commands (inner loop, C++)
+    aileron = pid_roll.compute(p_error, dt)
+    elevator = pid_pitch.compute(q_error, dt)
+    rudder = pid_yaw.compute(r_error, dt)
+
+    # Saturate
+    aileron = np.clip(aileron, -1, 1)
+    elevator = np.clip(elevator, -1, 1)
+    rudder = np.clip(rudder, -1, 1)
+
+    return elevator, aileron, rudder
+```
+
+**Key Point**: Level 4 rate controllers run at high frequency (1000 Hz in C++) for fast, tight control.
+
+### Use Cases
+- Acrobatic flight (direct rate control)
+- Aggressive maneuvers (flips, rolls)
+- Expert piloting (RC "acro mode")
+- Inner loop for Level 3 angle mode
+
+### RL Training Considerations
+
+**Challenges:**
+- Requires precise timing (fast dynamics)
+- Must learn aircraft rate response
+
+**Advantages:**
+- Denser rewards than angle mode
+- More direct control than angle mode
+
+**Reward Function Example:**
+```python
+def compute_reward_level4(state, action, target_rates):
+    # Rate tracking
+    p_error = target_rates.p - state.p
+    q_error = target_rates.q - state.q
+    r_error = target_rates.r - state.r
+    reward_rates = -(p_error**2 + q_error**2 + r_error**2) * 10.0
+
+    # Control effort penalty
+    reward_effort = -np.sum(np.abs([action.aileron, action.elevator, action.rudder])) * 0.1
+
+    # Crash penalty
+    reward_crash = -1000.0 if state.altitude < 0 else 0.0
+
+    return reward_rates + reward_effort + reward_crash
+```
+
+**Training Tips:**
+- Start with single-axis rate control (roll only)
+- Use high-frequency control loop (100+ Hz)
+- Aggressive domain randomization (vary inertia, drag)
+
+### Performance Metrics
+- Rate tracking error (deg/s RMS)
+- Response time (10-90% rise time)
+- Control bandwidth (Hz)
+
+---
+
+## Level 5: Direct Surface Control
 
 ### Purpose
 Lowest abstraction. Direct command of control surfaces.
+
+**NEW in 5-level design**: Level 5 is now pure actuation (no PID). It receives surface commands from Level 4 and applies them via the mixer.
 
 ### Agent Action Space
 ```python
@@ -482,7 +636,7 @@ action = {
 }
 ```
 
-### Observation Space (Level 4 Agents)
+### Observation Space (Level 5 Agents)
 ```python
 observation = [
     # Full state
@@ -568,7 +722,7 @@ def quadrotor_mixer(roll, pitch, yaw, throttle):
 
 **Reward Function Example:**
 ```python
-def compute_reward_level4(state, action, task):
+def compute_reward_level5(state, action, task):
     # Task-specific (e.g., maintain level flight)
     if task == "level_flight":
         reward_task = -(abs(state.roll) + abs(state.pitch)) * 10.0
@@ -629,7 +783,7 @@ High-level agent commands low-level agent.
 class HierarchicalAgent(BaseAgent):
     def __init__(self):
         self.high_level_agent = SingleLevelAgent(ControlLevel.WAYPOINT)  # Level 1
-        self.low_level_agent = SingleLevelAgent(ControlLevel.STICK)      # Level 3
+        self.low_level_agent = SingleLevelAgent(ControlLevel.ATTITUDE)   # Level 3
 
     def get_action(self, observation):
         # High-level runs at 1 Hz
@@ -638,9 +792,9 @@ class HierarchicalAgent(BaseAgent):
             self.current_waypoint = waypoint
 
         # Low-level runs at 50 Hz
-        stick_command = self.low_level_agent.get_action(observation_level3)
+        attitude_command = self.low_level_agent.get_action(observation_level3)
 
-        return stick_command  # Low-level commands are what actually execute
+        return attitude_command  # Low-level commands are what actually execute
 ```
 
 **Use Case**: Decompose long-horizon tasks.
@@ -656,7 +810,8 @@ class AdaptiveAgent(BaseAgent):
         self.level_policies = {
             ControlLevel.WAYPOINT: WaypointPolicy(),
             ControlLevel.HSA: HSAPolicy(),
-            ControlLevel.STICK: StickPolicy(),
+            ControlLevel.ATTITUDE: AttitudePolicy(),
+            ControlLevel.RATE: RatePolicy(),
             ControlLevel.SURFACE: SurfacePolicy()
         }
 
@@ -679,8 +834,8 @@ RL policy with classical safety fallback.
 ```python
 class HybridAgent(BaseAgent):
     def __init__(self):
-        self.rl_policy = RLPolicy(ControlLevel.SURFACE)  # Level 4
-        self.safety_controller = ClassicalController(ControlLevel.STICK)  # Level 3
+        self.rl_policy = RLPolicy(ControlLevel.SURFACE)  # Level 5
+        self.safety_controller = ClassicalController(ControlLevel.RATE)  # Level 4
         self.safety_monitor = SafetyMonitor()
 
     def get_action(self, observation):
@@ -706,19 +861,46 @@ class HybridAgent(BaseAgent):
 |-------|-------------|-------------------|--------|----------|
 | 1: Waypoint | Highest | Lowest | Safest | Navigation, missions |
 | 2: HSA | High | Medium-Low | Safe | Formation, coverage |
-| 3: Stick | Medium | Medium-High | Moderate | Acrobatics, manual |
-| 4: Surface | Lowest | Highest | Risky | Novel aircraft, research |
+| 3: Attitude | Medium | Medium | Moderate | Stabilized flight |
+| 4: Rate | Medium-Low | Medium-High | Moderate | Acrobatics, expert |
+| 5: Surface | Lowest | Highest | Risky | Novel aircraft, research |
 
 **Decision Tree:**
 - **Need navigation?** → Start at Level 1
 - **Need state tracking?** → Level 2
-- **Need agile maneuvers?** → Level 3
-- **Novel aircraft or optimal control?** → Level 4
+- **Need stabilized flight?** → Level 3 (angle mode)
+- **Need agile maneuvers?** → Level 4 (rate mode)
+- **Novel aircraft or optimal control?** → Level 5
 
 ---
 
-**Document Status**: ✅ Complete
-**Last Updated**: 2025-10-09
+## Summary: 4-Level vs 5-Level Architecture
+
+### Old 4-Level Design
+```
+L1: Waypoint → L2: HSA → L3: Stick/Attitude (mixed) → L4: Surface
+```
+
+### New 5-Level Design (Current)
+```
+L1: Waypoint → L2: HSA → L3: Attitude (Angle) → L4: Rate → L5: Surface
+```
+
+**Key Changes:**
+- **Level 3**: Now dedicated to **angle mode** (outer loop)
+- **Level 4**: NEW - **rate mode** (inner loop)
+- **Level 5**: Renamed from Level 4, pure actuation
+
+**Benefits:**
+- Matches industry-standard flight controllers
+- Cleaner separation of concerns
+- Enables both angle mode (beginner) and rate mode (expert)
+- Easier to tune (separate PID loops)
+
+---
+
+**Document Status**: ✅ Updated to 5-level architecture
+**Last Updated**: 2025-10-11
 **Related Documents**:
 - 05_AGENT_INTERFACE_CONTROL.md (agent integration)
 - 04_FLIGHT_CONTROLLER.md (controller implementations)

@@ -1,0 +1,131 @@
+# JSBSim-Specific PID Gains for RC Plane Model
+#
+# These gains are tuned for the custom rc_plane JSBSim model, which has:
+# - Mass: 10 kg
+# - Wing area: 0.5 m²
+# - Realistic aerodynamic damping (unlike simplified 6DOF)
+# - Realistic propeller/thrust dynamics
+#
+# Strategy: Start VERY conservative since JSBSim has proper physics
+
+# =============================================================================
+# Level 4: Rate Control (Inner Loop)
+# =============================================================================
+# JSBSim has natural aerodynamic damping, so we need MUCH lower gains
+
+# Roll rate PID (p → aileron)
+roll_rate:
+  kp: 0.10        # Conservative - JSBSim has natural roll damping
+  ki: 0.05        # Low integral to avoid windup
+  kd: 0.0001      # Minimal derivative (JSBSim already has damping)
+  i_limit: 10.0   # Tight integral limit
+
+# Pitch rate PID (q → elevator)
+pitch_rate:
+  kp: 0.10        # Conservative - pitch is naturally damped
+  ki: 0.05
+  kd: 0.0001
+  i_limit: 10.0
+
+# Yaw rate PID (r → rudder)
+yaw_rate:
+  kp: 0.08        # Even more conservative - yaw is heavily damped
+  ki: 0.02
+  kd: 0.00005
+  i_limit: 10.0
+
+# =============================================================================
+# Level 3: Attitude Control (Outer Loop)
+# =============================================================================
+# Attitude loop should be ~5x slower than rate loop
+
+# Roll angle PID (roll → p_cmd)
+roll_angle:
+  kp: 0.15        # Very conservative for JSBSim
+  ki: 0.08        # Low integral
+  kd: 0.03        # Some damping
+  i_limit: 10.0
+
+# Pitch angle PID (pitch → q_cmd)
+pitch_angle:
+  kp: 0.15        # Match roll for symmetry
+  ki: 0.08
+  kd: 0.03
+  i_limit: 10.0
+
+# Yaw angle PID (yaw → r_cmd)
+yaw_angle:
+  kp: 0.10        # Lower for yaw
+  ki: 0.02
+  kd: 0.00005
+  i_limit: 10.0
+
+# =============================================================================
+# Level 2: HSA Control (Heading/Speed/Altitude)
+# =============================================================================
+# HSA loop should be ~5x slower than attitude loop
+
+# Heading PID (heading → roll_cmd)
+heading:
+  kp: 0.8         # Very conservative - JSBSim responds slower to bank commands
+  ki: 0.05        # Low integral to avoid windup during turns
+  kd: 0.2         # Some damping to prevent overshoot
+  i_limit: 10.0
+
+# Speed PID (airspeed → throttle)
+speed:
+  kp: 0.08        # Gentle - JSBSim prop dynamics are realistic
+  ki: 0.005       # Very low integral (thrust takes time to build)
+  kd: 0.0         # No derivative (prop response is already smooth)
+  i_limit: 10.0
+
+# Altitude PID (altitude → pitch_cmd)
+altitude:
+  kp: 0.15        # Conservative to prevent phugoid
+  ki: 0.01        # Low integral to avoid energy coupling
+  kd: 0.08        # Damping to stabilize climb/descend
+  i_limit: 10.0
+
+# =============================================================================
+# Control Limits
+# =============================================================================
+
+# Rate limits (deg/s) - Conservative for JSBSim
+max_roll_rate: 60.0     # Gentle maneuvers only
+max_pitch_rate: 45.0    # Even more conservative for pitch
+max_yaw_rate: 30.0      # Very gentle yaw
+
+# Angle limits (deg) - Conservative to prevent stall
+max_roll: 25.0          # 25° max bank to avoid stall
+max_pitch: 15.0         # 15° max pitch for safety
+
+# Control loop rate
+dt: 0.01  # 100 Hz for angle loop
+
+# =============================================================================
+# JSBSim-Specific Notes
+# =============================================================================
+#
+# Why these gains are much lower than default_gains.yaml:
+#
+# 1. **Natural Damping**: JSBSim includes realistic aerodynamic damping
+#    (simplified sim had almost none). We don't need high D gains.
+#
+# 2. **Realistic Inertia**: Mass/inertia dynamics are properly modeled,
+#    so responses are slower and more realistic.
+#
+# 3. **Propeller Dynamics**: Thrust responds realistically to throttle,
+#    with propwash effects. Need gentler control.
+#
+# 4. **Stall Modeling**: JSBSim will actually stall if we command
+#    excessive angles of attack. Must be conservative.
+#
+# 5. **Control Surface Effectiveness**: Varies with airspeed realistically.
+#    Lower gains compensate for this variation.
+#
+# Tuning Strategy:
+# - Start here (very conservative)
+# - Test basic stability in straight/level flight
+# - Gradually increase gains if response is too sluggish
+# - Watch for: stalls, oscillations, divergence
+# - Target: smooth, stable flight with <10% overshoot
