@@ -15,7 +15,7 @@ import os
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from validation.jsbsim_backend import JSBSimBackend
+from simulation.simplified_6dof import Simplified6DOF
 from controllers.waypoint_agent import WaypointAgent
 from controllers.mission_planner import MissionPlanner, Waypoint
 from controllers.types import ControllerConfig, AircraftState, ControlMode, ControlCommand, PIDGains
@@ -176,22 +176,31 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
     # Convert waypoints to Waypoint objects
     waypoint_objects = [Waypoint.from_altitude(north=wp[0], east=wp[1], altitude=wp[2]) for wp in waypoints]
 
-    # Initialize mission planner and controller with JSBSim-specific gains
-    config = load_controller_config("jsbsim_gains.yaml")
+    # Initialize mission planner and controller with default gains (for simplified 6DOF)
+    config = load_controller_config("default_gains.yaml")
     planner = MissionPlanner(waypoint_objects, acceptance_radius=300.0)
     planner.start()  # Start the mission
     agent = WaypointAgent(config, guidance_type="pure_pursuit")
 
-    # Initialize JSBSim simulation (much more realistic than simplified 6DOF!)
-    print("\n🚀 Using JSBSim for realistic flight dynamics...")
-    jsbsim_config = {
-        'aircraft': 'c172p',  # Cessna 172
-        'initial_lat': 37.6177,  # KSFO
-        'initial_lon': -122.3750,
-        'initial_altitude': waypoints[0][2],  # Start altitude
-        'dt_physics': 0.01  # 100 Hz physics
-    }
-    sim = JSBSimBackend(jsbsim_config)
+    # Initialize Simplified 6DOF simulation (better altitude control than JSBSim currently)
+    print("\n🚀 Using Simplified 6DOF for stable flight dynamics...")
+    sim = Simplified6DOF()
+
+    # Set initial position at first waypoint
+    from controllers.types import AircraftState
+    import numpy as np
+    initial_state = AircraftState(
+        time=0.0,
+        position=np.array([0.0, 0.0, -waypoints[0][2]]),  # NED: down is negative altitude
+        velocity=np.array([28.0, 0.0, 0.0]),  # 28 m/s forward
+        attitude=np.array([0.0, 0.0, 0.0]),  # Level flight
+        angular_rate=np.array([0.0, 0.0, 0.0]),
+        airspeed=28.0,
+        altitude=waypoints[0][2],
+        ground_speed=28.0,
+        heading=0.0
+    )
+    sim.reset(initial_state)
 
     # Simulation loop
     print("Starting simulation...")
