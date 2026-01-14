@@ -13,6 +13,8 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{siunitx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,3d}
 
 % Math commands
 \newcommand{\vect}[1]{\bm{#1}}
@@ -187,6 +189,37 @@ The inverse transformation is simply the matrix transpose (since $\mat{R}^{NB}$ 
 \vect{v}^B = (\mat{R}^{NB})^T \vect{v}^N = \mat{R}^{BN} \vect{v}^N
 \end{equation}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2, >=Stealth]
+    % NED frame
+    \draw[->,thick,black!70] (0,0,0) -- (2,0,0) node[anchor=north east]{$x_N$ (North)};
+    \draw[->,thick,black!70] (0,0,0) -- (0,2,0) node[anchor=north west]{$y_N$ (East)};
+    \draw[->,thick,black!70] (0,0,0) -- (0,0,1.5) node[anchor=south]{$z_N$ (Down)};
+
+    % Body frame (rotated)
+    \coordinate (O) at (3,2,0.5);
+    \draw[->,thick,blue] (O) -- ++(1.5,0.3,0) node[anchor=west]{$x_B$ (fwd)};
+    \draw[->,thick,blue] (O) -- ++(-0.3,1.2,0) node[anchor=south]{$y_B$ (right)};
+    \draw[->,thick,blue] (O) -- ++(0,0,1.2) node[anchor=north west]{$z_B$ (down)};
+
+    % Aircraft symbol
+    \draw[thick,blue,fill=blue!10] (O) circle (0.15);
+
+    % Labels
+    \node[anchor=south] at (1,0,-0.3) {\textbf{NED Frame}};
+    \node[anchor=south,blue] at (3.5,2.5,-0.3) {\textbf{Body Frame}};
+
+    % Euler angle annotations
+    \node[anchor=west,font=\small] at (5,2.5,0.5) {Orientation: $(\phi, \theta, \psi)$};
+    \node[anchor=west,font=\small] at (5,2,0.5) {$\phi$: roll (about $x_B$)};
+    \node[anchor=west,font=\small] at (5,1.5,0.5) {$\theta$: pitch (about $y_B$)};
+    \node[anchor=west,font=\small] at (5,1,0.5) {$\psi$: yaw (about $z_B$)};
+\end{tikzpicture}
+\caption{NED inertial frame and body-fixed coordinate frame. The body frame orientation relative to NED is parameterized by Euler angles $(\phi, \theta, \psi)$ using a 3-2-1 rotation sequence.}
+\label{fig:coordinate_frames}
+\end{figure}
+
 \subsection{Euler Angles and Their Limitations}
 
 Euler angles provide an intuitive parameterization of orientation but suffer from a critical limitation: \textbf{gimbal lock}. This singularity occurs when the pitch angle approaches $\theta = \pm 90°$, causing the roll and yaw axes to align. At this configuration, the transformation between Euler rates and body angular rates becomes undefined (division by $\cos\theta = 0$).
@@ -274,10 +307,19 @@ Explicitly:
 
 Equations~\eqref{eq:phi_dot}--\eqref{eq:psi_dot} contain terms with $\tan\theta$ and $1/\cos\theta$, which become infinite as $\theta \to \pm 90°$. This is the gimbal lock singularity.
 
-\textbf{Implementation mitigation:} To prevent numerical overflow, we clamp $\theta$ to a safe range during integration:
+\textbf{Implementation mitigation:} To prevent numerical overflow at the singularity, we clamp $\theta$ to a safe range during integration:
 \begin{equation}
 \theta_{\text{safe}} = \text{clamp}(\theta, -85°, +85°)
 \end{equation}
+
+\textbf{Important caveat:} Clamping prevents the \textit{numerical singularity} (division by $\cos\theta = 0$) but does not prevent \textit{gimbal lock behavior}. Near $\theta = 85°$:
+\begin{itemize}[noitemsep]
+    \item $\tan(85°) \approx 11.4$: Small errors in $q$ or $r$ are amplified 11$\times$ in $\dot{\phi}$ and $\dot{\psi}$ (see Eq.~\eqref{eq:euler_rates})
+    \item Numerical conditioning degrades: Round-off errors accumulate rapidly
+    \item Roll ($\phi$) and yaw ($\psi$) become nearly indistinguishable (loss of representational uniqueness)
+\end{itemize}
+
+\textbf{Recommendation:} For maneuvers exceeding $|\theta| > 60°$ (steep climbs/dives), or any sustained near-vertical flight, use quaternion attitude representation to avoid these issues entirely.
 
 Additionally, Euler angles are wrapped to their principal ranges after each integration step:
 \begin{align}
@@ -343,7 +385,7 @@ where $\vect{F}^B = [F_x, F_y, F_z]^T$ is the total force vector (aerodynamic + 
 
 \subsubsection{Rotational Dynamics: Euler's Equations}
 
-The rotational analog of Newton's second law relates the moment (torque) to angular acceleration. In body coordinates, Euler's equations for a rigid body are:
+The rotational analog of Newton's second law relates the moment (torque) to angular acceleration. In body coordinates, Euler's equations for a rigid body are \cite{stevens2015, etkin2005}:
 \begin{equation}
 \vect{M}^B = \mat{I}\dot{\vect{\omega}}^B + \vect{\omega}^B \cross (\mat{I}\vect{\omega}^B)
 \label{eq:euler_moments}
@@ -388,15 +430,25 @@ Solving for angular accelerations:
 \dot{r} &= \frac{N - (I_{yy} - I_{xx})pq}{I_{zz}} \label{eq:r_dot}
 \end{align}
 
-\textbf{Simplified form for diagonal inertia:}
-Since we assume diagonal inertia, Equations~\eqref{eq:p_dot}--\eqref{eq:r_dot} further simplify to:
+\textbf{Gyroscopic coupling in the simplified implementation:}
+
+\textbf{Important clarification:} The diagonal inertia assumption (products of inertia $I_{xy} = I_{xz} = I_{yz} = 0$) does NOT eliminate the gyroscopic coupling terms $(I_{zz} - I_{yy})qr$, $(I_{xx} - I_{zz})pr$, and $(I_{yy} - I_{xx})pq$ in Equations~\eqref{eq:p_dot}--\eqref{eq:r_dot}. These terms arise from the cross product $\vect{\omega}^B \cross (\mat{I}\vect{\omega}^B)$, not from off-diagonal inertia elements.
+
+However, for our simplified implementation, we \textit{additionally} neglect these gyroscopic coupling terms, reducing to:
 \begin{align}
 \dot{p} &= \frac{L}{I_{xx}} \label{eq:p_dot_simple} \\
 \dot{q} &= \frac{M}{I_{yy}} \label{eq:q_dot_simple} \\
 \dot{r} &= \frac{N}{I_{zz}} \label{eq:r_dot_simple}
 \end{align}
 
-\textbf{Note:} The gyroscopic coupling terms $(I_{zz} - I_{yy})qr$, etc., are often small for aircraft with similar $I_{yy}$ and $I_{zz}$, and are neglected in the simplified implementation for computational efficiency. For high-rate maneuvers or asymmetric aircraft, these terms become important.
+\textbf{Validity of this approximation:} The gyroscopic coupling terms are negligible when:
+\begin{itemize}[noitemsep]
+    \item Inertia ratios are near unity: $|I_{yy} - I_{zz}| \ll I_{xx}$, $|I_{xx} - I_{zz}| \ll I_{yy}$, etc.
+    \item Angular rates are small: $p, q, r \ll \sqrt{L_{\max}/I_{xx}}$ (rates much smaller than maximum achievable)
+    \item Aircraft has near-symmetric mass distribution (typical for fixed-wing aircraft)
+\end{itemize}
+
+For high-rate aerobatic maneuvers (coordinated loops, barrel rolls) or aircraft with large inertia asymmetry, the full coupled equations~\eqref{eq:p_dot}--\eqref{eq:r_dot} should be used.
 
 \textbf{Physical interpretation:}
 \begin{itemize}[noitemsep]
@@ -413,6 +465,47 @@ The total force vector in body coordinates is the sum of aerodynamic, thrust, an
 \begin{equation}
 \vect{F}^B = \vect{F}_{\text{aero}}^B + \vect{F}_{\text{thrust}}^B + \vect{F}_{\text{grav}}^B
 \end{equation}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5, >=Stealth]
+    % Aircraft body (simplified side view)
+    \coordinate (cg) at (0,0);
+    \draw[thick,fill=gray!20] (-0.8,-0.2) -- (1.2,-0.2) -- (1.5,0) -- (1.2,0.2) -- (-0.8,0.2) -- cycle;
+    \draw[thick,fill=gray!30] (-0.6,-0.05) -- (-0.6,0.05) -- (-1.2,0.4) -- (-1.2,0.3) -- cycle; % tail
+    \draw[thick,fill=gray!30] (-0.3,-0.5) -- (-0.3,-0.05) -- (0.3,-0.05) -- (0.3,-0.5) -- cycle; % wing
+
+    % Center of gravity marker
+    \fill (cg) circle (2pt);
+    \node[anchor=north] at (cg) {CG};
+
+    % Velocity vector (reference)
+    \draw[->,thick,gray,dashed] (cg) -- ++(3,0) node[midway,above,black] {$\vect{V}$ (airspeed)};
+
+    % Angle of attack
+    \draw[<->,thick,red!70] (1.5,0) arc[start angle=0, end angle=25, radius=1.5];
+    \node[red!70,anchor=west] at (1.8,0.3) {$\alpha$};
+
+    % Forces
+    % Lift (perpendicular to velocity)
+    \draw[->,ultra thick,blue] (cg) -- ++(0,2.5) node[anchor=south] {$L$ (Lift)};
+
+    % Drag (parallel to velocity, opposing)
+    \draw[->,ultra thick,red] (cg) -- ++(-1.8,0) node[anchor=east] {$D$ (Drag)};
+
+    % Thrust (along body x-axis, approximately)
+    \draw[->,ultra thick,green!60!black] (cg) -- ++(2.2,0.8) node[anchor=west] {$T$ (Thrust)};
+
+    % Weight (downward in NED frame)
+    \draw[->,ultra thick,purple] (cg) -- ++(0,-2) node[anchor=north] {$W = mg$ (Weight)};
+
+    % Body axis (for reference)
+    \draw[->,dashed,black!50] (cg) -- ++(2,0.73) node[anchor=west,font=\small] {$x_B$};
+
+\end{tikzpicture}
+\caption{Free-body diagram showing forces acting on the aircraft. Lift $L$ and drag $D$ are defined in the wind frame (relative to airspeed $\vect{V}$), thrust $T$ acts approximately along the body $x$-axis, and weight $W$ acts downward in the NED frame. Angle of attack $\alpha$ is the angle between the body $x$-axis and the velocity vector.}
+\label{fig:free_body}
+\end{figure}
 
 \subsubsection{Aerodynamic Forces}
 
@@ -480,7 +573,25 @@ where $T_{\max}$ is maximum thrust (e.g., \SI{50}{N} for a typical RC aircraft).
     \item Thrust vector aligned with $x_B$ (no thrust vectoring or downwash angle)
 \end{itemize}
 
-For small propeller-driven aircraft, these simplifications are acceptable for control system development. More sophisticated models include thrust as a function of RPM, advance ratio, and propeller efficiency curves.
+\textbf{Important note on propeller thrust:}
+
+The constant-thrust model is appropriate for \textit{jet aircraft}, where thrust is nearly independent of airspeed. However, the document states the model is "calibrated for small fixed-wing aircraft (e.g., Cessna 172, large RC aircraft)" (line 96), which are typically \textit{propeller-driven}.
+
+For propeller aircraft, thrust decreases significantly with airspeed. A simple linear approximation is:
+\begin{equation}
+T = T_{\text{static}} \left(1 - \frac{V}{V_{\max}}\right)
+\label{eq:prop_thrust}
+\end{equation}
+where $T_{\text{static}}$ is static thrust (at $V=0$) and $V_{\max}$ is the velocity at which thrust vanishes ($T=0$).
+
+\textbf{Impact on model accuracy:}
+\begin{itemize}[noitemsep]
+    \item At low airspeed ($V < 10$ m/s): Our constant-thrust model \textit{underestimates} available thrust (propeller thrust is higher)
+    \item At high airspeed ($V > 30$ m/s): Our model \textit{overestimates} thrust (propeller thrust decreases)
+    \item For control system development at moderate cruise speeds ($V \approx 15$--$25$ m/s), constant thrust is acceptable
+\end{itemize}
+
+\textbf{Recommendation:} For improved accuracy with propeller aircraft, implement Eq.~\eqref{eq:prop_thrust}. More sophisticated models include propeller RPM, advance ratio $J = V/(nD)$, and thrust coefficient lookup tables $C_T(J)$.
 
 \subsubsection{Gravitational Force in Body Frame}
 
@@ -613,6 +724,35 @@ Yaw damping arises primarily from the vertical tail, which experiences a sidesli
 
 Aerodynamic forces and moments are non-dimensionalized using dynamic pressure $q_{\infty}$ and reference geometry. This allows data from wind tunnel tests or CFD to be scaled and compared across different conditions.
 
+\subsubsection{Sign Conventions for Control Surfaces}
+
+To ensure consistent interpretation of control surface effects, we adopt the following sign conventions:
+
+\textbf{Control surface deflections:}
+\begin{itemize}[noitemsep]
+    \item \textbf{Elevator ($\delta_e$):} Positive deflection = trailing edge down $\to$ increases tail lift $\to$ nose-down pitching moment (conventional aircraft with aft tail)
+    \item \textbf{Aileron ($\delta_a$):} Positive deflection = right aileron down, left aileron up $\to$ increases right wing lift $\to$ positive roll moment (right wing down, aircraft rolls right)
+    \item \textbf{Rudder ($\delta_r$):} Positive deflection = trailing edge left $\to$ tail pushed right $\to$ nose-left yawing moment
+\end{itemize}
+
+\textbf{Angles and rates:}
+\begin{itemize}[noitemsep]
+    \item \textbf{Angle of attack ($\alpha$):} Positive when nose is pitched up relative to velocity vector ($w > 0$)
+    \item \textbf{Sideslip angle ($\beta$):} Positive when nose points left of velocity vector ($v > 0$, air comes from the right)
+    \item \textbf{Angular rates:} Follow right-hand rule about body axes ($p$ = roll rate about $x_B$, $q$ = pitch rate about $y_B$, $r$ = yaw rate about $z_B$)
+\end{itemize}
+
+\textbf{Derivative signs:}
+\begin{itemize}[noitemsep]
+    \item $C_{m_{\delta_e}} < 0$: Positive elevator produces nose-down moment (stable control response)
+    \item $C_{l_{\delta_a}} > 0$: Positive aileron produces positive roll moment (right wing down)
+    \item $C_{n_{\delta_r}} < 0$: Positive rudder produces nose-left yaw moment
+    \item $C_{n_\beta} < 0$: Weathercock stability - positive sideslip ($\beta > 0$, nose left of velocity) produces restoring nose-right moment
+    \item $C_{l_\beta} < 0$: Dihedral effect - positive sideslip produces negative roll moment (left wing down), rolling into the relative wind
+\end{itemize}
+
+These conventions are consistent with standard aerospace practice and ensure that positive control inputs produce expected aircraft responses.
+
 \subsubsection{Lift Coefficient}
 
 The lift coefficient is modeled as:
@@ -625,21 +765,22 @@ C_L = C_{L_0} + C_{L_\alpha} \alpha + C_{L_{\delta_e}} \delta_e
 \begin{itemize}[noitemsep]
     \item $C_{L_0}$: Zero-alpha lift coefficient. For cambered airfoils, lift is generated even at $\alpha = 0$ due to asymmetric pressure distribution. Typical value: $C_{L_0} \approx 0.3$ for GA aircraft.
 
-    \item $C_{L_\alpha}$: Lift curve slope $\frac{\partial C_L}{\partial \alpha}$. From thin airfoil theory, $C_{L_\alpha} = 2\pi$ per radian ($\approx 0.11$ per degree) for 2D flow. Finite wing effects reduce this to $C_{L_\alpha} \approx 4$--$5$ rad$^{-1}$ for typical aspect ratios.
+    \item $C_{L_\alpha}$: Lift curve slope $\frac{\partial C_L}{\partial \alpha}$. From thin airfoil theory \cite{anderson2017}, $C_{L_\alpha} = 2\pi$ per radian ($\approx 0.11$ per degree) for 2D flow. Finite wing effects reduce this to $C_{L_\alpha} \approx 4$--$5$ rad$^{-1}$ for typical aspect ratios.
 
     \item $C_{L_{\delta_e}}$: Elevator effectiveness. Deflecting the elevator changes the effective camber and tail angle of attack, modifying total lift. Typical value: $C_{L_{\delta_e}} \approx 0.5$ rad$^{-1}$.
 \end{itemize}
 
 \textbf{Linearization and validity:}
-Equation~\eqref{eq:CL_model} is a linearization valid for small to moderate angles of attack (typically $\alpha < 15°$). At high $\alpha$, flow separation occurs (stall), and $C_L$ decreases. A more complete model would include:
+Equation~\eqref{eq:CL_model} is a linearization valid for small to moderate angles of attack (typically $\alpha < 12°$--$16°$). At high $\alpha$, flow separation occurs (stall), and $C_L$ decreases. A more complete model would include:
 \begin{equation}
 C_L(\alpha) = \begin{cases}
 C_{L_0} + C_{L_\alpha} \alpha & \alpha < \alpha_{\text{stall}} \\
 C_{L,\text{max}} - k(\alpha - \alpha_{\text{stall}})^2 & \alpha \geq \alpha_{\text{stall}}
 \end{cases}
+\label{eq:CL_stall_model}
 \end{equation}
 
-Our simplified model does not include stall; we clamp $\alpha \in [-30°, +30°]$ to remain in the linear regime.
+Our simplified model does not include stall. \textbf{Important limitation:} The linear $C_L(\alpha)$ model is only valid for $|\alpha| < \alpha_{\text{stall}} \approx 12°$--$16°$. We clamp $\alpha \in [-30°, +30°]$ to prevent extreme nonphysical behavior, but this clamping range extends well into the post-stall regime ($16° < |\alpha| < 30°$) where the linear model is \textit{not} physically accurate. Within this range, the model provides graceful numerical degradation rather than true stall physics. For realistic stall modeling, implement a nonlinear $C_L(\alpha)$ function as shown in Eq.~\eqref{eq:CL_stall_model} below.
 
 \subsubsection{Drag Coefficient}
 
@@ -653,14 +794,35 @@ C_D = C_{D_0} + C_{D_{\alpha^2}} \alpha^2
 \begin{itemize}[noitemsep]
     \item $C_{D_0}$: Parasitic drag coefficient at zero lift. This includes skin friction drag, form drag, and interference drag. Typical value for small aircraft: $C_{D_0} \approx 0.03$.
 
-    \item $C_{D_{\alpha^2}} \alpha^2$: Induced drag. When the wing generates lift, wingtip vortices form, creating a downwash that tilts the lift vector backward, inducing drag. From lifting-line theory:
-    \begin{equation}
-    C_{D,i} = \frac{C_L^2}{\pi e AR}
-    \end{equation}
-    where $AR$ is aspect ratio and $e$ is Oswald efficiency factor. For small $\alpha$, $C_L \approx C_{L_\alpha} \alpha$, so $C_{D,i} \propto \alpha^2$.
+    \item $C_{D_{\alpha^2}} \alpha^2$: Approximation of induced drag.
 \end{itemize}
 
-The $\alpha^2$ dependence captures the fact that induced drag is symmetric about $\alpha = 0$ and increases rapidly at high angles of attack.
+\textbf{Relationship to proper parabolic drag polar:}
+
+The physically accurate drag model from lifting-line theory is the parabolic drag polar \cite{anderson2017}:
+\begin{equation}
+C_D = C_{D_0} + K C_L^2 \quad \text{where } K = \frac{1}{\pi e AR}
+\label{eq:CD_parabolic}
+\end{equation}
+where $AR$ is aspect ratio and $e$ is Oswald efficiency factor ($e \approx 0.7$--$0.9$).
+
+Our simplified model Eq.~\eqref{eq:CD_model} is an approximation valid under these assumptions:
+\begin{enumerate}[noitemsep]
+    \item Zero-alpha lift is small: $C_{L_0} \approx 0$ (or we account for it separately)
+    \item Small angles of attack: $\alpha \ll 1$ rad
+    \item Linear lift: $C_L \approx C_{L_\alpha} \alpha$
+\end{enumerate}
+
+Then $C_L^2 \approx (C_{L_\alpha} \alpha)^2$, giving $C_D \approx C_{D_0} + K C_{L_\alpha}^2 \alpha^2$, which matches Eq.~\eqref{eq:CD_model} with $C_{D_{\alpha^2}} = K C_{L_\alpha}^2$.
+
+\textbf{Limitations:} The $\alpha^2$ model neglects:
+\begin{itemize}[noitemsep]
+    \item Linear $\alpha$ term from non-zero $C_{L_0}$ (cambered airfoils)
+    \item Cross-term $2 C_{L_0} C_{L_\alpha} \alpha$ in the expansion of $(C_{L_0} + C_{L_\alpha}\alpha)^2$
+    \item Elevator contribution to lift (which also induces drag)
+\end{itemize}
+
+For higher accuracy, use the parabolic polar Eq.~\eqref{eq:CD_parabolic} with the full lift coefficient from Eq.~\eqref{eq:CL_model}. Our $\alpha^2$ approximation provides acceptable accuracy for symmetric, low-camber airfoils at moderate angles of attack.
 
 \subsubsection{Side Force Coefficient}
 
@@ -769,6 +931,67 @@ Typical value: $C_{n_r} \approx -0.3$ rad$^{-1}$ (reduced from typical -1.0 for 
 
 \textbf{Physical effect:} Yaw damping stabilizes Dutch roll oscillations and prevents uncommanded yaw departures.
 
+\subsubsection{Weathercock Stability: $C_{n_\beta}$}
+
+Weathercock stability (also called directional stability) describes the aircraft's tendency to align with the relative wind when experiencing sideslip. When the aircraft has a positive sideslip angle $\beta > 0$ (nose pointing left of the velocity vector, air coming from the right), the vertical tail experiences an angle of attack, generating a side force on the tail that produces a restoring yaw moment.
+
+\textbf{Physical mechanism:}
+\begin{itemize}[noitemsep]
+    \item Positive sideslip ($\beta > 0$) creates airflow from the right side
+    \item Vertical tail acts like a weathervane, experiencing lift force pointing left
+    \item This tail force creates a nose-right yawing moment (negative $N$, since positive $N$ is nose-left)
+    \item Therefore, $C_{n_\beta} < 0$ provides restoring moment toward $\beta = 0$
+\end{itemize}
+
+The weathercock stability derivative is approximately:
+\begin{equation}
+C_{n_\beta} \approx -\eta_v V_v C_{L_\alpha,v}
+\end{equation}
+where $\eta_v$ is the vertical tail efficiency, $V_v = \frac{S_v \ell_v}{S b}$ is the vertical tail volume coefficient, $S_v$ is vertical tail area, $\ell_v$ is tail moment arm, and $C_{L_\alpha,v}$ is the tail lift curve slope.
+
+Typical value: $C_{n_\beta} \approx -0.12$ rad$^{-1}$ for conventional aircraft.
+
+\textbf{Stability criterion:} $C_{n_\beta} < 0$ is required for directional stability. If $C_{n_\beta} > 0$, sideslip disturbances diverge (unstable weathervane). Aircraft with insufficient vertical tail area or aft CG can have positive $C_{n_\beta}$.
+
+\textbf{Physical effect:} Weathercock stability couples with roll dynamics in the Dutch roll mode. Strong weathercock stability ($C_{n_\beta} \ll 0$) increases Dutch roll frequency but may reduce damping, leading to persistent lateral oscillations.
+
+\subsubsection{Dihedral Effect: $C_{l_\beta}$}
+
+The dihedral effect describes the rolling moment generated by sideslip. When the aircraft has positive sideslip ($\beta > 0$, nose left of velocity, air from right), wing dihedral and sweep cause the aircraft to experience a rolling moment that banks into the relative wind.
+
+\textbf{Physical mechanism:}
+\begin{itemize}[noitemsep]
+    \item Positive sideslip ($\beta > 0$, air from right) increases the effective angle of attack on the right wing and decreases it on the left wing (for positive dihedral angle)
+    \item Right wing generates more lift, left wing less lift
+    \item Net rolling moment is negative (left wing down), banking the aircraft to the right (into the wind)
+    \item Therefore, $C_{l_\beta} < 0$ provides lateral stability
+\end{itemize}
+
+Sources of dihedral effect:
+\begin{enumerate}[noitemsep]
+    \item \textbf{Geometric dihedral:} Wings angled upward from root to tip ($\Gamma > 0$)
+    \item \textbf{Wing sweep:} Swept wings produce dihedral effect even without geometric dihedral
+    \item \textbf{High wing configuration:} Fuselage-induced flow asymmetry contributes positive dihedral effect
+    \item \textbf{Vertical tail:} Side force on tail creates rolling moment via vertical offset from CG
+\end{enumerate}
+
+Approximate formula for geometric dihedral contribution:
+\begin{equation}
+C_{l_\beta,\Gamma} \approx -C_{L_\alpha} \frac{\Gamma}{2}
+\end{equation}
+where $\Gamma$ is the dihedral angle in radians.
+
+Typical value: $C_{l_\beta} \approx -0.10$ rad$^{-1}$ for aircraft with moderate dihedral.
+
+\textbf{Stability criterion:} $C_{l_\beta} < 0$ provides lateral stability (spiral mode convergence). However, excessive dihedral effect ($C_{l_\beta} \ll 0$) can cause:
+\begin{itemize}[noitemsep]
+    \item Overly sensitive lateral response (uncomfortable handling, especially in turbulence)
+    \item Reduced spiral mode stability if combined with weak weathercock stability
+    \item Increased Dutch roll damping (beneficial in some cases)
+\end{itemize}
+
+\textbf{Design trade-off:} High-wing trainer aircraft use strong dihedral ($\Gamma \approx 5°$--$7°$) for self-leveling stability. Aerobatic and fighter aircraft use minimal or negative dihedral (anhedral) for neutral or slightly unstable lateral characteristics, improving roll agility.
+
 \subsubsection{Relationship to Aircraft Stability}
 
 The damping derivatives are critical for dynamic stability modes:
@@ -819,7 +1042,16 @@ We treat the Earth as flat and non-rotating: the NED frame is inertial.
     \item Curvature effects for long-range navigation
 \end{itemize}
 
-\textbf{Validity:} Excellent for flights of short duration ($< 1$ hour) and limited range ($< 100$ km). The Coriolis acceleration is $\sim 2 \omega_E V \approx 0.003$ m/s$^2$ for $V = 20$ m/s, negligible compared to aerodynamic accelerations ($\sim 10$ m/s$^2$).
+\textbf{Validity:} The magnitude of Coriolis acceleration is $\sim 2 \omega_E V \approx 0.003$ m/s$^2$ for $V = 20$ m/s, negligible compared to aerodynamic accelerations ($\sim 10$ m/s$^2$).
+
+\textbf{Application scope:}
+\begin{itemize}[noitemsep]
+    \item \textbf{Flight dynamics and control system development:} Excellent. Coriolis effects are negligible on timescales of seconds to minutes.
+    \item \textbf{Short-term simulation ($< 10$ minutes):} Excellent. Position errors accumulate slowly.
+    \item \textbf{Long-duration navigation ($> 10$ minutes):} \textit{Not valid}. Coriolis effects accumulate in position, causing significant navigation errors. For flights $> 1$ hour or range $> 100$ km, Earth rotation must be included for accurate trajectory prediction.
+\end{itemize}
+
+\textbf{Clarification:} This approximation is suitable for the intended use case (control system development and RL training) but should not be used for high-precision inertial navigation or long-range flight planning.
 
 \subsection{Thrust Aligned with Body X-Axis}
 
@@ -863,13 +1095,22 @@ All aerodynamic coefficients are linear in $\alpha$, $\delta$, and rate terms. T
 
 \subsection{Limitations on Angle of Attack and Sideslip}
 
-To maintain model validity, we enforce:
+To prevent numerical instability, we enforce:
 \begin{align}
 \alpha &\in [-30°, +30°] \\
 V &\geq 5 \text{ m/s}
 \end{align}
 
-These limits keep the aircraft in the linear aerodynamic regime and prevent numerical issues at very low airspeed.
+\textbf{Critical caveat:} These limits do NOT keep the aircraft in the valid linear aerodynamic regime. For typical airfoils, stall occurs at $\alpha_{\text{stall}} \approx 12°$--$16°$. The $\pm 30°$ clamping allows operation well into the post-stall regime where our linear $C_L(\alpha)$ model is invalid. This clamping provides \textit{numerical} stability (preventing runaway values) but not \textit{physical} accuracy.
+
+\textbf{Recommendations:}
+\begin{itemize}[noitemsep]
+    \item For pre-stall flight only: Reduce clamping to $\alpha \in [-15°, +15°]$ and verify aircraft stays within this range
+    \item For realistic high-$\alpha$ flight: Implement nonlinear $C_L(\alpha)$, $C_D(\alpha)$ models with proper stall characteristics (Eq.~\eqref{eq:CL_stall_model})
+    \item For control system testing: Current $\pm 30°$ clamping is acceptable, understanding that $16° < |\alpha| < 30°$ represents graceful degradation, not true physics
+\end{itemize}
+
+The velocity limit $V \geq 5$ m/s prevents division-by-zero in damping terms and represents a minimum flying speed below which the model is not meaningful.
 
 % ============================================================================
 \section{Limitations and Validity Range}
@@ -930,7 +1171,7 @@ The model does not include:
 
 \subsection{Compressibility Effects at High Speed}
 
-For $M > 0.3$ (approximately $V > 100$ m/s at sea level), compressibility affects aerodynamics:
+For $M > 0.3$ (approximately $V > 100$ m/s at sea level), compressibility affects aerodynamics \cite{anderson2017}:
 \begin{equation}
 C_{L,\text{comp}} = \frac{C_L}{\sqrt{1 - M^2}}
 \end{equation}

@@ -1,4 +1,12 @@
-"""Base agent interface for all control agents."""
+"""RL Agent interface for learning-based control agents.
+
+This module defines the interface for RL/learning agents, which differs from
+the classical controller interface in controllers/base_agent.py:
+
+- RLAgentInterface: For RL agents that take observations and return commands
+- controllers.base_agent.BaseAgent: For classical controllers that take commands
+  and return surface deflections
+"""
 
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
@@ -10,14 +18,17 @@ from controllers.types import (
 )
 
 
-class BaseAgent(ABC):
-    """Abstract base class for all agent types.
+class RLAgentInterface(ABC):
+    """Abstract base class for RL/learning agent types.
 
-    All agents (classical, RL, hybrid, human-in-loop, hierarchical) must
-    implement this interface.
+    This interface is designed for agents that:
+    - Take raw observations (numpy arrays) as input
+    - Return ControlCommands as output
+    - May learn from experience (update method)
+    - May need persistence (save/load methods)
 
-    This interface enables complete swappability of agents without changing
-    any other system components.
+    For classical controllers that take ControlCommands and return
+    ControlSurfaces, use controllers.base_agent.BaseAgent instead.
     """
 
     @abstractmethod

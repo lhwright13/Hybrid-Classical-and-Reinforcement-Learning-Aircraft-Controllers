@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 [Your Name]
+Copyright (c) 2025 Lucas Wright
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,15 +22,16 @@ SOFTWARE.
 
 ---
 
-## Third-Party Components
+## Third-Party Components and Acknowledgments
 
-This project incorporates code from the following projects:
+This project uses the following third-party components:
 
 ### dRehmFlight
-- **License**: Original license retained (see dRehmFlight documentation)
-- **Author**: Nicholas Rehm
-- **Description**: Flight controller algorithms and PID implementations
-- **Location**: `core/` directory (C++ PID controllers)
+- **Inspiration**: Control architecture and design patterns
+- **Author**: Nicholas Rehm 
+- **URL**: https://github.com/nickrehm/dRehmFlight
+- **License**: GPL-3.0
+- **Note**: No code from dRehmFlight is incorporated in this project. Our PID controllers and flight control algorithms are independent implementations of standard control theory. We acknowledge dRehmFlight as inspiration for the cascaded control architecture design.
 
 ### JSBSim
 - **License**: LGPL 2.1

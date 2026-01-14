@@ -96,10 +96,10 @@ Located in `simulation/simplified_6dof.py`, this implements:
 | **Speed** | ~1000 steps/sec | ~100 steps/sec |
 
 **Why use simplified?**
-- ✅ Fast enough for RL training (~1M samples/hour)
-- ✅ Stable and predictable
-- ✅ Good enough for control algorithm development
-- ✅ Easy to understand and modify
+- Fast enough for RL training (~1M samples/hour)
+- Stable and predictable
+- Good enough for control algorithm development
+- Easy to understand and modify
 
 **When to use JSBSim?**
 - Final validation before hardware
@@ -202,15 +202,13 @@ command = ControlCommand(
 )
 
 surfaces = agent.compute_action(command, state)
-backend.step(surfaces, dt=0.01)
+backend.set_controls(surfaces)
+backend.step(dt=0.01)
 ```
 
 **Characteristics**:
-- ✅ Maximum control authority
-- ✅ Fastest possible response
-- ❌ Requires continuous input
-- ❌ No stability augmentation
-- ❌ Easy to over-control
+- **Pros**: Maximum control authority, fastest possible response
+- **Cons**: Requires continuous input, no stability augmentation, easy to over-control
 
 **Use cases**: Acrobatics, research, direct neural network output
 
@@ -246,10 +244,10 @@ surfaces = agent.compute_action(command, state)  # PID computes surfaces
 - Aircraft will keep rolling until you center the stick
 
 **Characteristics**:
-- ✅ Direct control of rotation speed
-- ✅ Fast response (~0.15s settling time)
-- ❌ Aircraft won't level itself
-- ❌ Requires active control to maintain attitude
+- • Direct control of rotation speed
+- • Fast response (~0.15s settling time)
+- • Aircraft won't level itself
+- • Requires active control to maintain attitude
 
 **Use cases**: FPV racing, aggressive maneuvers, RL training (Level 4)
 
@@ -296,10 +294,10 @@ Your Command → Attitude PID → Rate Command → Rate PID → Surfaces
 ```
 
 **Characteristics**:
-- ✅ Aircraft auto-levels when stick centered
-- ✅ Easier than rate mode
-- ✅ Good for smooth flying
-- ❌ Slower response than rate mode
+- • Aircraft auto-levels when stick centered
+- • Easier than rate mode
+- • Good for smooth flying
+- • Slower response than rate mode
 
 **Use cases**: Casual flying, photography, stable platform
 
@@ -341,11 +339,11 @@ HSA Command → HSA PID → Attitude → Rate PID → Surfaces
 ```
 
 **Characteristics**:
-- ✅ Set and forget
-- ✅ Maintains heading, speed, altitude automatically
-- ✅ Like autopilot "heading hold" + "altitude hold"
-- ❌ Can't do precise maneuvers
-- ❌ Slower response to commands
+- • Set and forget
+- • Maintains heading, speed, altitude automatically
+- • Like autopilot "heading hold" + "altitude hold"
+- • Can't do precise maneuvers
+- • Slower response to commands
 
 **Use cases**: Cruise flight, formation flying, holding patterns
 
@@ -390,11 +388,11 @@ Waypoint → Guidance → HSA → Attitude → Rate PID → Surfaces
 ```
 
 **Characteristics**:
-- ✅ Fully autonomous navigation
-- ✅ No pilot input needed
-- ✅ Handles complex multi-waypoint missions
-- ❌ Slowest response
-- ❌ Limited to pre-planned paths
+- • Fully autonomous navigation
+- • No pilot input needed
+- • Handles complex multi-waypoint missions
+- • Slowest response
+- • Limited to pre-planned paths
 
 **Use cases**: Survey missions, autonomous delivery, search patterns
 
@@ -459,16 +457,16 @@ graph LR
 ```
 
 **Option 1** (Recommended): Use Python 6-DOF for physics, FlightGear for visualization
-- ✅ Fast simulation (~1000 Hz)
-- ✅ Consistent with your training
-- ✅ Easy to modify physics
-- ❌ Visual position may drift slightly
+- • Fast simulation (~1000 Hz)
+- • Consistent with your training
+- • Easy to modify physics
+- • Visual position may drift slightly
 
 **Option 2**: Use FlightGear for both physics and visualization
-- ✅ Perfect visual accuracy
-- ✅ Realistic aerodynamics
-- ❌ Slower (~100 Hz)
-- ❌ Different from training environment
+- • Perfect visual accuracy
+- • Realistic aerodynamics
+- • Slower (~100 Hz)
+- • Different from training environment
 
 ### FlightGear HUD Elements
 
@@ -539,133 +537,6 @@ command.mode = current_mode
 surfaces = agents[current_mode].compute_action(command, state)
 ```
 
-### Classical PID ↔ Learned RL
-
-**In Pygame GUI with Learned Controllers**:
-```bash
-python examples/launch_pygame_gui_with_learned_rate.py
-```
-
-**Press L key** to toggle between:
-- Classical PID (smooth, precise)
-- Learned RL (fast response, may oscillate)
-
-**Observable differences**:
-- RL achieves setpoint faster (~90% faster settling time)
-- PID is smoother with less overshoot
-- RL adapts to changing conditions
-- PID is more predictable
-
----
-
-## Practice Exercises
-
-### Exercise 1: Surface Control (Hard)
-
-**Goal**: Fly straight and level for 30 seconds using only surface deflections
-
-```bash
-# In Pygame GUI, press M until "Surface" mode
-# Try to maintain altitude and heading using only stick input
-```
-
-**Success criteria**:
-- ±50 feet altitude variation
-- ±10° heading variation
-- No crashes!
-
-### Exercise 2: Rate Control (Medium)
-
-**Goal**: Perform a coordinated 360° turn
-
-```bash
-# Switch to Rate mode
-# Command constant roll rate
-# Watch altitude - you'll need to add pitch!
-```
-
-**Success criteria**:
-- Complete 360° turn
-- Return to original altitude (±100 feet)
-- Smooth motion (no jerky inputs)
-
-### Exercise 3: Attitude Control (Easy)
-
-**Goal**: Fly a square pattern
-
-```bash
-# Switch to Attitude mode
-# Fly straight segments with 90° turns at corners
-```
-
-**Success criteria**:
-- 4 equal-length sides
-- 90° turns at each corner
-- Constant altitude throughout
-
-### Exercise 4: HSA Control (Very Easy)
-
-**Goal**: Climb to 500m while turning to heading 90°
-
-```bash
-# Switch to HSA mode
-# Set: heading=90, speed=25, altitude=500
-# Watch the aircraft do it automatically
-```
-
-**Success criteria**:
-- Reaches target altitude
-- Holds heading 90° ±5°
-- Smooth transition
-
-### Exercise 5: Waypoint Navigation (Easiest)
-
-**Goal**: Complete a 4-waypoint mission
-
-```bash
-python examples/waypoint_mission.py
-# Watch the aircraft navigate autonomously
-```
-
-**Success criteria**:
-- Visits all 4 waypoints
-- Returns to origin
-- No manual intervention
-
----
-
-## Tips for Each Control Level
-
-### Surface Control Tips
-- **Start small**: Use tiny inputs (±0.05) until you feel the aircraft
-- **Anticipate**: Aircraft response has delay, think ahead
-- **Trim first**: Get close to equilibrium before maneuvering
-- **Practice on simulator first**: Don't start on hardware!
-
-### Rate Control Tips
-- **Centering is critical**: Aircraft won't level itself
-- **Use reference points**: Pick a horizon feature to track
-- **Smooth inputs**: Sudden stick movements cause oscillations
-- **Learn the rates**: Know what 30°/s vs 90°/s feels like
-
-### Attitude Control Tips
-- **Let it work**: Don't fight the auto-level
-- **Plan turns**: Set desired bank, aircraft will turn
-- **Combine with throttle**: More throttle = faster climb
-- **Trust the controller**: It's doing the hard work for you
-
-### HSA Control Tips
-- **Set realistic values**: Don't command 200 knots if aircraft can only do 100
-- **Give it time**: HSA is slow to respond (by design)
-- **Monitor energy**: Climbing + accelerating = need more throttle
-- **Use for cruise**: Not for aggressive maneuvering
-
-### Waypoint Navigation Tips
-- **Check arrival radius**: Waypoint agent has threshold (default ~20m)
-- **Realistic altitudes**: Don't command ground level!
-- **Smooth paths**: Avoid 180° turns, use gradual curves
-- **Monitor progress**: Watch distance-to-waypoint decrease
-
 ---
 
 ## Troubleshooting
@@ -710,18 +581,6 @@ roll_rate = np.radians(10)  # Instead of 90
 config.roll_rate_gains.kp = 0.20  # Instead of 0.30
 config.roll_rate_gains.kd = 0.0001  # Instead of 0.0002
 ```
-
----
-
-## Next Steps
-
-1. **Master each level**: Start at Level 1 (easiest), work down to Level 5
-2. **Compare RL vs PID**: Use `examples/02_rl_vs_pid_demo.py`
-3. **Train your own**: `cd learned_controllers && python train_rate.py`
-4. **Visualize in FlightGear**: See your controllers in beautiful 3D
-5. **Read the research**: See [EXPERIMENTS.md](EXPERIMENTS.md) for methodology
-
-Happy flying! ✈️
 
 ---
 

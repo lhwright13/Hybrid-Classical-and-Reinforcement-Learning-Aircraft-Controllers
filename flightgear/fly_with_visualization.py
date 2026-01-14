@@ -169,7 +169,7 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
     # Initialize FlightGear visualizer
     fg_viz = FlightGearVisualizer()
     if not fg_viz.connect():
-        print("\n⚠ WARNING: FlightGear not connected - simulation will run without visualization")
+        print("\nWarning: WARNING: FlightGear not connected - simulation will run without visualization")
         print("  To see visualization, make sure FlightGear is running and try again\n")
         time.sleep(2)
 
@@ -183,7 +183,7 @@ def fly_mission_with_visualization(waypoints, duration=300.0, dt=0.01):
     agent = WaypointAgent(config, guidance_type="pure_pursuit")
 
     # Initialize Simplified 6DOF simulation (better altitude control than JSBSim currently)
-    print("\n🚀 Using Simplified 6DOF for stable flight dynamics...")
+    print("\nUsing Simplified 6DOF for stable flight dynamics...")
     sim = Simplified6DOF()
 
     # Set initial position at first waypoint

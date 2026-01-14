@@ -1,9 +1,12 @@
 """Level 4: Learned Rate Control Agent - RL-based rate controller."""
 
+import logging
 import numpy as np
 import torch
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from controllers.base_agent import BaseAgent
 from controllers.types import (
@@ -104,8 +107,9 @@ class LearnedRateAgent(BaseAgent):
             model = RecurrentPPO.load(model_path, device=device)
             print(f"Loaded RecurrentPPO model from {model_path}")
             return model
-        except:
-            pass
+        except Exception as e:
+            # Log for debugging but continue to try PPO
+            logger.debug(f"RecurrentPPO load failed (trying PPO): {e}")
 
         # Try loading as PPO
         try:
@@ -126,13 +130,15 @@ class LearnedRateAgent(BaseAgent):
     def compute_action(
         self,
         command: ControlCommand,
-        state: AircraftState
+        state: AircraftState,
+        dt: float = None
     ) -> ControlSurfaces:
         """Compute surface deflections from rate commands.
 
         Args:
             command: Rate control command (p, q, r desired)
             state: Current aircraft state
+            dt: Time step (unused by RL agent, included for API compatibility)
 
         Returns:
             ControlSurfaces: Control surface deflections

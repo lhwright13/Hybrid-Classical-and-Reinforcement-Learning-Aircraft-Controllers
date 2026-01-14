@@ -14,6 +14,8 @@
 \usepackage{algpseudocode}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
 
 % Code listing style
 \lstset{
@@ -80,7 +82,7 @@ This separation---which we adopt as Levels 3 and 4 in our architecture---is the 
 
 \textbf{Our contribution} extends dRehmFlight's core two-loop structure by adding:
 \begin{itemize}[noitemsep]
-    \item \textbf{Level 2 (HSA)}: Heading, speed, altitude control for autonomous flight
+    \item \textbf{Level 2 (HSA --- Heading, Speed, Altitude)}: Control for autonomous flight
     \item \textbf{Level 1 (Waypoint)}: 3D navigation with guidance algorithms
     \item \textbf{Level 5 (Surface)}: Explicit surface control layer for RL research
     \item \textbf{Mathematical rigor}: Graduate-level derivations of control laws
@@ -137,6 +139,54 @@ The control flow propagates through the hierarchy:
 \begin{equation}
 \text{Waypoint} \xrightarrow{\text{L1}} \text{HSA} \xrightarrow{\text{L2}} \text{Attitude} \xrightarrow{\text{L3}} \text{Rates} \xrightarrow{\text{L4}} \text{Surfaces} \xrightarrow{\text{L5}} \text{Aircraft}
 \end{equation}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.5cm,
+    box/.style={rectangle, draw, fill=blue!10, text width=2.5cm, align=center, minimum height=1cm, rounded corners},
+    agent/.style={rectangle, draw, fill=green!10, text width=2cm, align=center, minimum height=0.7cm, dashed},
+    arrow/.style={-Stealth, thick}
+]
+    % Level boxes
+    \node[box] (l1) {Level 1\\Waypoint\\Navigation};
+    \node[box, below=of l1] (l2) {Level 2\\HSA\\Control};
+    \node[box, below=of l2] (l3) {Level 3\\Attitude\\Control};
+    \node[box, below=of l3] (l4) {Level 4\\Rate\\Control};
+    \node[box, below=of l4] (l5) {Level 5\\Surface\\Control};
+    \node[box, below=of l5, fill=gray!20] (aircraft) {Aircraft\\Dynamics};
+
+    % Flow arrows
+    \draw[arrow] (l1) -- node[right, font=\small] {$\psi_{cmd}, V_{cmd}, h_{cmd}$} (l2);
+    \draw[arrow] (l2) -- node[right, font=\small] {$\phi_{cmd}, \theta_{cmd}, \psi_{cmd}$} (l3);
+    \draw[arrow] (l3) -- node[right, font=\small] {$p_{cmd}, q_{cmd}, r_{cmd}$} (l4);
+    \draw[arrow] (l4) -- node[right, font=\small] {$\delta_a, \delta_e, \delta_r$} (l5);
+    \draw[arrow] (l5) -- node[right, font=\small] {Actuator cmds} (aircraft);
+
+    % Agent input points (on left side)
+    \node[agent, left=2.5cm of l1] (a1) {Agent};
+    \node[agent, left=2.5cm of l2] (a2) {Agent};
+    \node[agent, left=2.5cm of l3] (a3) {Agent};
+    \node[agent, left=2.5cm of l4] (a4) {Agent};
+    \node[agent, left=2.5cm of l5] (a5) {Agent};
+
+    % Agent arrows
+    \draw[arrow, dashed, green!60!black] (a1) -- (l1);
+    \draw[arrow, dashed, green!60!black] (a2) -- (l2);
+    \draw[arrow, dashed, green!60!black] (a3) -- (l3);
+    \draw[arrow, dashed, green!60!black] (a4) -- (l4);
+    \draw[arrow, dashed, green!60!black] (a5) -- (l5);
+
+    % Frequency annotations (on right side)
+    \node[right=1.5cm of l1, font=\small, text width=2cm, align=left] {1--10 Hz};
+    \node[right=1.5cm of l2, font=\small, text width=2cm, align=left] {10--50 Hz};
+    \node[right=1.5cm of l3, font=\small, text width=2cm, align=left] {50--100 Hz};
+    \node[right=1.5cm of l4, font=\small, text width=2cm, align=left] {100--200 Hz};
+    \node[right=1.5cm of l5, font=\small, text width=2cm, align=left] {200--500 Hz};
+\end{tikzpicture}
+\caption{Five-level cascaded control architecture. Agents can command at any level (dashed green arrows), bypassing higher levels. Each level outputs commands to the level below at progressively higher frequencies.}
+\label{fig:control_architecture}
+\end{figure}
 
 Each level acts as the \textbf{outer loop} for the level below. This cascaded structure:
 \begin{itemize}[noitemsep]
@@ -216,7 +266,7 @@ I_{zz} \dot{r} &= N - (I_{yy} - I_{xx}) p q \label{eq:yaw_dyn}
 
 where:
 \begin{itemize}[noitemsep]
-    \item $p, q, r$: Roll, pitch, yaw angular rates (rad/s) in body frame
+    \item $p, q, r$: Roll, pitch, yaw angular rates (rad/s) in body frame. Specifically: $p$ = rate about body $x$-axis (forward), $q$ = rate about body $y$-axis (right wing), $r$ = rate about body $z$-axis (down)
     \item $L, M, N$: Roll, pitch, yaw moments (N$\cdot$m)
     \item $I_{xx}, I_{yy}, I_{zz}$: Principal moments of inertia (kg$\cdot$m$^2$)
 \end{itemize}
@@ -253,7 +303,7 @@ These are first-order linear systems, amenable to classical PID control.
 
 \subsection{PID Controller Design for Rate Tracking}
 
-A PID (Proportional-Integral-Derivative) controller is ideal for rate tracking due to its simplicity, robustness, and well-understood tuning methods.
+A PID (Proportional-Integral-Derivative) controller is ideal for rate tracking due to its simplicity, robustness, and well-understood tuning methods \cite{astrom2006, franklin2019}.
 
 \subsubsection{Continuous PID Formulation}
 
@@ -421,6 +471,51 @@ Tuning PID gains is both art and science. A systematic approach:
     \item Set integral limits to 2--3$\times$ typical I term value
 \end{itemize}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.2cm and 2cm,
+    block/.style={rectangle, draw, fill=blue!10, text width=3cm, align=center, minimum height=1cm, rounded corners},
+    decision/.style={diamond, draw, fill=yellow!10, text width=2.2cm, align=center, aspect=2},
+    arrow/.style={-Stealth, thick}
+]
+    % Start
+    \node[block] (start) {Set $K_i = 0$, $K_d = 0$\\Start with P only};
+
+    % P tuning
+    \node[block, below=of start] (p1) {Increase $K_p$};
+    \node[decision, below=of p1] (p2) {Fast response?\\Low overshoot?};
+
+    % D tuning
+    \node[block, below=of p2] (d1) {Increase $K_d$};
+    \node[decision, below=of d1] (d2) {Reduced\\oscillation?};
+
+    % I tuning
+    \node[block, below=of d2] (i1) {Slowly\\increase $K_i$};
+    \node[decision, below=of i1] (i2) {Zero\\steady-state\\error?};
+
+    % Done
+    \node[block, below=of i2, fill=green!20] (done) {Tuning\\Complete};
+
+    % Arrows with yes/no
+    \draw[arrow] (start) -- (p1);
+    \draw[arrow] (p1) -- (p2);
+    \draw[arrow] (p2) -- node[right] {Yes} (d1);
+    \draw[arrow] (p2) -| node[near start, above] {No} ++(-2,0) |- (p1);
+
+    \draw[arrow] (d1) -- (d2);
+    \draw[arrow] (d2) -- node[right] {Yes} (i1);
+    \draw[arrow] (d2) -| node[near start, above] {No} ++(-2,0) |- (d1);
+
+    \draw[arrow] (i1) -- (i2);
+    \draw[arrow] (i2) -- node[right] {Yes} (done);
+    \draw[arrow] (i2) -| node[near start, above] {No} ++(-2,0) |- (i1);
+
+\end{tikzpicture}
+\caption{PID tuning flowchart. Sequential tuning of P, D, and I gains ensures systematic convergence to stable, responsive control.}
+\label{fig:pid_tuning}
+\end{figure}
+
 For typical RC aircraft:
 \begin{itemize}[noitemsep]
     \item Roll: $K_p \approx 0.5$, $K_i \approx 0.05$, $K_d \approx 0.1$
@@ -440,7 +535,7 @@ Level 3 forms the \textbf{outer loop} of a cascaded control structure, with Leve
 \boxed{\text{Angle error} \xrightarrow{\text{Level 3 PID}} \text{Rate command} \xrightarrow{\text{Level 4 PID}} \text{Surface deflection}}
 \end{equation}
 
-The separation of angle and rate control provides:
+The separation of angle and rate control provides \cite{stevens2015, franklin2019}:
 \begin{itemize}[noitemsep]
     \item \textbf{Frequency separation}: Angle loop $\sim$50--100 Hz, rate loop $\sim$500--1000 Hz
     \item \textbf{Independent tuning}: Tune fast inner loop first, then slower outer loop
@@ -491,22 +586,44 @@ The relationship between Euler angle rates and body angular rates is:
 \label{eq:euler_kinematics}
 \end{equation}
 
-Inverting (assuming $|\theta| < 85°$):
+Inverting Eq.~\eqref{eq:euler_kinematics} (assuming $|\theta| < 85°$) gives the body rates in terms of Euler rates:
 
+\begin{equation}
+\begin{bmatrix} p \\ q \\ r \end{bmatrix} =
+\begin{bmatrix}
+1 & 0 & -\sin\theta \\
+0 & \cos\phi & \sin\phi\cos\theta \\
+0 & -\sin\phi & \cos\phi\cos\theta
+\end{bmatrix}
+\begin{bmatrix} \dot{\phi} \\ \dot{\theta} \\ \dot{\psi} \end{bmatrix}
+\label{eq:euler_inverse}
+\end{equation}
+
+Explicitly:
 \begin{align}
-p &= \dot{\phi} - \sin\theta \dot{\psi} \\
-q &= \cos\phi \dot{\theta} + \sin\phi \cos\theta \dot{\psi} \\
-r &= -\sin\phi \dot{\theta} + \cos\phi \cos\theta \dot{\psi}
+p &= \dot{\phi} - \dot{\psi}\sin\theta \\
+q &= \dot{\theta}\cos\phi + \dot{\psi}\sin\phi\cos\theta \\
+r &= -\dot{\theta}\sin\phi + \dot{\psi}\cos\phi\cos\theta
 \end{align}
 
-For small angles ($\phi, \theta \ll 1$):
+For small angles ($\phi, \theta \ll 1$ rad) AND small cross-axis rates:
 
 \begin{align}
-\dot{\phi} &\approx p \\
-\dot{\theta} &\approx q \\
-\dot{\psi} &\approx r
+\dot{\phi} &\approx p \quad \text{(valid if } q\sin\phi\tan\theta \ll p \text{ and } r\cos\phi\tan\theta \ll p \text{)} \nonumber \\
+\dot{\theta} &\approx q \quad \text{(valid if } r\sin\phi \ll q \text{)} \nonumber \\
+\dot{\psi} &\approx r \quad \text{(valid if } q\sin\phi/\cos\theta \ll r \text{ and } r\cos\phi/\cos\theta \approx r \text{)}
 \label{eq:small_angle_approx}
 \end{align}
+
+\textbf{Critical clarification:} This approximation requires BOTH:
+\begin{enumerate}[noitemsep]
+    \item Small Euler angles: $|\phi|, |\theta| < 15°$ (so $\sin\phi \approx \phi$, $\tan\theta \approx \theta$)
+    \item Small cross-axis angular rates relative to primary rates
+\end{enumerate}
+
+The approximation is \textit{not} valid if angles are small but rates are large (e.g., small roll angle but high pitch/yaw rates), or during coordinated maneuvers where all three rates are significant simultaneously.
+
+\textbf{Application:} This approximation is reasonable for small attitude excursions from level flight (e.g., $|\phi| < 10°$, $|\theta| < 5°$) with gentle maneuvers. For aggressive flight or aerobatics, use the full kinematic equations~\eqref{eq:euler_kinematics}.
 
 \subsection{Cascaded Attitude Controller Design}
 
@@ -534,7 +651,19 @@ p_{cmd} = K_{p,\phi} e_\phi + K_{i,\phi} \int e_\phi dt - K_{d,\phi} p
 \label{eq:roll_with_rate_feedback}
 \end{equation}
 
-This is a PD controller on angle error with integral correction, using current rate $p$ as derivative feedback (cleaner than differentiating noisy angle measurements).
+\textbf{Derivative-on-measurement technique:}
+
+This formulation uses $-K_d p$ instead of $+K_d \dot{e}_\phi$ (derivative of error). This is called \textbf{derivative-on-measurement} or \textbf{rate feedback}, and it provides important advantages:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Cleaner signal}: Angular rates $p, q, r$ come directly from gyroscopes (clean, high-bandwidth measurements), whereas differentiating Euler angles amplifies sensor noise and quantization
+    \item \textbf{No derivative kick}: When the setpoint $\phi_{cmd}$ changes suddenly (step command), $\dot{e}_\phi$ has a spike, causing unwanted control transients. Using $-K_d p$ avoids this because $p$ changes smoothly
+    \item \textbf{Equivalent damping}: For setpoint tracking with slowly-varying commands, $\dot{e}_\phi \approx -\dot{\phi} \approx -p$, so the two formulations are equivalent in steady-state
+\end{enumerate}
+
+\textbf{Important distinction:} The effective derivative gain differs from pure error derivative. With derivative-on-measurement, we're damping the \textit{output} (rate) rather than the error derivative. This is superior for cascaded control where the inner loop directly measures rates.
+
+This is a PD controller on angle error with integral correction, using current rate $p$ as derivative feedback.
 
 Similarly for pitch and yaw:
 
@@ -603,14 +732,23 @@ Level 2 converts HSA commands to attitude commands for Level 3.
 
 \subsubsection{Heading Control via Coordinated Turn}
 
-To change heading, the aircraft must bank (roll) and turn. For a coordinated turn:
+To change heading, the aircraft must bank (roll) and turn. For a coordinated turn (zero sideslip), the required bank angle is:
 
 \begin{equation}
-\phi_{cmd} = \arctan\left(\frac{V^2}{g R}\right) \approx \frac{V \dot{\psi}}{g}
+\phi_{cmd} = \arctan\left(\frac{V^2}{g R}\right) = \arctan\left(\frac{V \dot{\psi}}{g}\right)
+\label{eq:coordinated_turn_exact}
+\end{equation}
+
+where $R$ is turn radius, $g = 9.81$ m/s$^2$, and $\dot{\psi} = V/R$ for circular motion.
+
+\textbf{Small-angle approximation:} For small bank angles ($|\phi| < 15°$, so $\arctan(\phi) \approx \phi$):
+
+\begin{equation}
+\phi_{cmd} \approx \frac{V \dot{\psi}}{g}
 \label{eq:coordinated_turn}
 \end{equation}
 
-where $R$ is turn radius and $g = 9.81$ m/s$^2$.
+This approximation is valid when $V\dot{\psi}/g < 0.26$ (corresponding to $\phi < 15°$). For tighter turns or higher speeds, use the exact arctangent formulation Eq.~\eqref{eq:coordinated_turn_exact}.
 
 A PID controller on heading error produces yaw rate, which maps to roll angle:
 
@@ -622,13 +760,38 @@ r_{\text{des}} &= K_{p,H} \psi_{\text{error}} \\
 
 \subsubsection{Altitude Control via Pitch}
 
-Altitude error drives climb rate, which maps to pitch angle:
+Altitude error drives climb rate, which maps to pitch angle via the climb equation.
+
+\textbf{Physical relationship:} For small angles and moderate speeds, the climb rate is:
+\begin{equation}
+\dot{h} \approx V \sin(\theta - \alpha) \approx V(\theta - \alpha)
+\label{eq:climb_rate}
+\end{equation}
+
+where $\alpha$ is angle of attack (typically $\alpha_{\text{trim}} \approx 2°$--$5°$ in cruise).
+
+Solving for pitch angle:
+\begin{equation}
+\theta_{cmd} = \alpha_{\text{trim}} + \frac{\dot{h}_{\text{des}}}{V}
+\label{eq:pitch_from_climb}
+\end{equation}
+
+\textbf{Implementation:}
 
 \begin{align}
 h_{\text{error}} &= h_{cmd} - h \\
 \dot{h}_{\text{des}} &= K_{p,A} h_{\text{error}} \quad \text{(clamped to } \pm 5 \text{ m/s)} \\
-\theta_{cmd} &\approx K_{h\theta} \dot{h}_{\text{des}} \quad \text{(typically } K_{h\theta} \approx 0.1 \text{)}
+\theta_{cmd} &= \alpha_{\text{trim}} + \frac{\dot{h}_{\text{des}}}{V_{\text{safe}}}
 \end{align}
+
+where $V_{\text{safe}} = \max(V, 15~\text{m/s})$ prevents excessive pitch commands at low airspeed, and $\alpha_{\text{trim}}$ is the trim angle of attack (can be set to zero for simplicity, or estimated as $\alpha_{\text{trim}} \approx 3°$).
+
+\textbf{Alternative empirical mapping:} If the physical relationship is unknown or airspeed is not available, an empirical gain can be used:
+\begin{equation}
+\theta_{cmd} \approx K_{h\theta} \dot{h}_{\text{des}} \quad \text{where } K_{h\theta} \approx \frac{1}{V_{\text{cruise}}} \text{ [rad·s/m]}
+\end{equation}
+
+The physically-based formulation Eq.~\eqref{eq:pitch_from_climb} is preferred as it automatically adapts to airspeed variations.
 
 \subsubsection{Speed Control via Throttle}
 

@@ -22,17 +22,17 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 - Read the [README.md](README.md) to understand the project
 - Check existing [Issues](https://github.com/yourusername/controls/issues) and [Pull Requests](https://github.com/yourusername/controls/pulls)
-- Review the [ROADMAP.md](ROADMAP.md) to see planned features
+- Review the [Implementation Roadmap](design_docs/12_IMPLEMENTATION_ROADMAP.md) to see planned features
 - Join discussions in [GitHub Discussions](https://github.com/yourusername/controls/discussions)
 
 ### Ways to Contribute
 
-- 🐛 **Bug Reports**: Found a bug? Open an issue with reproduction steps
-- 💡 **Feature Requests**: Have an idea? Propose it in Discussions
-- 📝 **Documentation**: Improve docs, add examples, fix typos
-- 🧪 **Tests**: Add test coverage, improve test quality
-- 🚀 **Code**: Implement features, fix bugs, optimize performance
-- 🔬 **Research**: Contribute experiments, benchmarks, analysis
+- **Bug Reports**: Found a bug? Open an issue with reproduction steps
+- **Feature Requests**: Have an idea? Propose it in Discussions
+- **Documentation**: Improve docs, add examples, fix typos
+- **Tests**: Add test coverage, improve test quality
+- **Code**: Implement features, fix bugs, optimize performance
+- **Research**: Contribute experiments, benchmarks, analysis
 
 ---
 
@@ -598,7 +598,6 @@ Report issues to: [maintainer email]
 
 - **GitHub Discussions**: For general questions and ideas
 - **Issues**: For bugs and feature requests
-- **Email**: For private inquiries or collaboration
 
 ---
 

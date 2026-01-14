@@ -120,11 +120,12 @@ def main():
     for i in range(steps):
         t = i * dt
 
-        # Compute control action
-        surfaces = agent.compute_action(command, state)
+        # Compute control action (pass dt for correct PID behavior)
+        surfaces = agent.compute_action(command, state, dt=dt)
 
         # Step simulation
-        backend.step(surfaces, dt)
+        backend.set_controls(surfaces)
+        backend.step(dt)
         state = backend.get_state()
 
         # Log data
@@ -210,12 +211,12 @@ def main():
 
     plt.tight_layout()
 
-    print("\n📊 Displaying results plot...")
+    print("\nDisplaying results plot...")
     print("   - Top: Angular rates (red line should track black dashed command)")
     print("   - Middle: Roll angle increases as aircraft rolls continuously")
     print("   - Bottom: Control surfaces (mainly aileron for roll control)")
     print()
-    print("✅ Success! The PID controller tracks the commanded roll rate.")
+    print("Success! The PID controller tracks the commanded roll rate.")
     print()
     print("Next steps:")
     print("  - Try examples/launch_pygame_gui.py for interactive control")

@@ -1,6 +1,7 @@
 """Level 3: Attitude Control Agent - Angle mode (outer loop)."""
 
 import numpy as np
+import logging
 from controllers.base_agent import BaseAgent
 from controllers.rate_agent import RateAgent
 from controllers.types import (
@@ -10,19 +11,9 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
-from controllers.utils.pid_utils import create_pid_config
+from controllers.utils import create_pid_config, wrap_angle, validate_command
 
-
-def wrap_angle(angle: float) -> float:
-    """Wrap angle to [-π, π].
-
-    Args:
-        angle: Angle in radians
-
-    Returns:
-        Wrapped angle in [-π, π]
-    """
-    return (angle + np.pi) % (2 * np.pi) - np.pi
+logger = logging.getLogger(__name__)
 
 
 class AttitudeAgent(BaseAgent):
@@ -116,10 +107,14 @@ class AttitudeAgent(BaseAgent):
         assert command.mode == ControlMode.ATTITUDE, \
             f"Attitude agent expects ATTITUDE mode, got {command.mode}"
 
+        # Validate required command fields
+        validate_command(command, "ATTITUDE", ["roll_angle", "pitch_angle"])
+
         # Clip angle commands to limits
         roll_cmd = np.clip(command.roll_angle, -self.max_roll, self.max_roll)
         pitch_cmd = np.clip(command.pitch_angle, -self.max_pitch, self.max_pitch)
-        yaw_cmd = wrap_angle(command.yaw_angle) if command.yaw_angle is not None else 0.0  # Wrap yaw to [-π, π]
+        # Yaw is optional, default to 0 if not provided
+        yaw_cmd = wrap_angle(command.yaw_angle) if command.yaw_angle is not None else 0.0
 
         # Angle setpoint
         angle_setpoint = acb.Vector3(roll_cmd, pitch_cmd, yaw_cmd)
@@ -151,7 +146,8 @@ class AttitudeAgent(BaseAgent):
         )
 
         # Inner loop: rate commands → surfaces (Level 4)
-        surfaces = self.rate_agent.compute_action(rate_cmd, state)
+        # Pass dt to ensure PID uses correct timestep
+        surfaces = self.rate_agent.compute_action(rate_cmd, state, dt=dt)
 
         return surfaces
 

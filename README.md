@@ -9,7 +9,7 @@ A research platform for comparing classical PID and reinforcement learning contr
 
 ---
 
-## 🎯 Research Contributions
+## Research Contributions
 
 1. **Multi-Level Learning Framework**: Train RL agents at any of 5 control abstraction levels (waypoint, HSA, attitude, rate, surface) with level-specific observation spaces, action spaces, and reward functions
 
@@ -23,7 +23,7 @@ A research platform for comparing classical PID and reinforcement learning contr
 
 ---
 
-## 📊 Quick Results Preview
+## Quick Results Preview
 
 > **Learned Rate Controller vs Classical PID** (Level 4: Rate Control)
 >
@@ -41,7 +41,7 @@ A research platform for comparing classical PID and reinforcement learning contr
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### 5-Level Cascaded Control Hierarchy
 
@@ -72,34 +72,13 @@ graph TB
 
 ---
 
-## 📈 Project Status
-
-**Current Phase: 5 (RL Training Infrastructure)** — ~60% Complete
-
-| Phase | Status | Progress | Deliverables |
-|-------|--------|----------|--------------|
-| **Phase 1**: Foundation | ✅ Complete | 100% | Interfaces, types, C++ bindings (34 tests) |
-| **Phase 2**: Simulation | ✅ Complete | 100% | 6-DOF physics, sensor simulation (31 tests) |
-| **Phase 3**: Classical Controllers | ✅ Complete | 95% | All 5 levels, cascaded PID (needs tuning) |
-| **Phase 4**: Visualization | ✅ Complete | 85% | Multi-aircraft system (49 tests) |
-| **Phase 5**: RL Training | ⏳ **Current** | ~60% | PPO+LSTM trained, evaluation complete |
-| **Phase 6**: Hardware | 🔜 Future | 0% | Teensy/MAVLink interface |
-| **Phase 7**: Advanced Agents | 🔜 Future | 0% | Hierarchical, adaptive, hybrid |
-| **Phase 8**: Deployment | 🔜 Future | 0% | Sim-to-real transfer, ONNX export |
-
-**Overall**: 4.6/8 phases complete (~58%) | **Tests**: 132/132 passing ✅ | **Code**: ~24,280 lines Python
-
-See [ROADMAP.md](ROADMAP.md) for detailed future work.
-
----
-
-## ✨ Key Features
+## Key Features
 
 ### Control System
 - **5-Level Control Hierarchy**: Waypoint → HSA → Attitude → Rate → Surface
-- **Cascaded PID Architecture**: Industry-standard inner/outer loop design (matches Betaflight, ArduPilot, PX4)
+- **Cascaded PID Architecture**: Industry-standard inner/outer loop design
 - **Hybrid C++/Python**: Performance-critical inner loop in C++ (1000 Hz), flexibility in Python
-- **Swappable Backends**: Interface-driven design (Simulation ↔ Hardware, Classical ↔ RL)
+- **Modularity**: Interface-driven design (Simulation ↔ Hardware, Classical ↔ RL)
 
 ### Reinforcement Learning
 - **PPO with LSTM**: Temporal pattern learning for non-Markovian flight dynamics
@@ -131,7 +110,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed future work.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -184,31 +163,28 @@ For detailed setup instructions, see [QUICKSTART.md](QUICKSTART.md).
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 ### User Guides
 - [QUICKSTART.md](QUICKSTART.md) - Installation and first simulation
 - [MANUAL_CONTROL.md](MANUAL_CONTROL.md) - Manual flying guide for all 5 control levels
 - [examples/README.md](examples/README.md) - Example walkthroughs and learning path
-- [EXPERIMENTS.md](EXPERIMENTS.md) - RL vs PID methodology, results, and reproduction
 - [FAQ.md](FAQ.md) - Common questions and troubleshooting
 - [flightgear/README.md](flightgear/README.md) - FlightGear 3D visualization setup
 
 ### Design Documentation (14 comprehensive docs)
-- [System Overview](design_docs/01_SYSTEM_OVERVIEW.md) - Architecture and philosophy
+- [System Overview](design_docs/00_OVERVIEW.md) - Architecture and philosophy
 - [Control Hierarchy](design_docs/03_CONTROL_HIERARCHY.md) - 5-level cascaded design
 - [Flight Controller](design_docs/04_FLIGHT_CONTROLLER.md) - PID implementation details
-- [RL Training](design_docs/10_RL_TRAINING.md) - Learning infrastructure and curriculum
-- [Validation](design_docs/11_VALIDATION.md) - Physics validation against JSBSim
+- [RL Training](design_docs/06_RL_AGENT_TRAINING.md) - Learning infrastructure and curriculum
 - [Full Documentation Index](design_docs/README.md)
 
 ### Development
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Development setup and guidelines
-- [ROADMAP.md](ROADMAP.md) - Future work and research directions
 
 ---
 
-## 🎮 Examples & Demos
+## Examples & Demos
 
 See [examples/README.md](examples/README.md) for detailed explanations. Recommended learning path:
 
@@ -236,7 +212,7 @@ See [learned_controllers/README.md](learned_controllers/README.md) for full RL t
 
 ---
 
-## 🔬 Research Use Cases
+## Research Use Cases
 
 ### 1. Algorithm Comparison
 Compare classical PID vs RL at each control level:
@@ -263,7 +239,7 @@ Validate learned controllers:
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 controls/
@@ -306,7 +282,7 @@ controls/
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Layer | Technologies |
 |-------|-------------|
@@ -321,14 +297,14 @@ controls/
 
 ---
 
-## 🧪 Validation & Testing
+## Validation & Testing
 
 ### Physics Validation
 The simplified 6-DOF model is validated against JSBSim:
 - **Trajectory Comparison**: RMSE, correlation metrics
 - **Test Scenarios**: Level flight, maneuvers, trimmed/untrimmed conditions
-- **12 Comprehensive Tests**: All passing ✅
-- See [validation/README.md](validation/README.md) for methodology
+- **12 Comprehensive Tests**: All passing
+- See [validation/TUNING_GUIDE.md](validation/TUNING_GUIDE.md) for methodology
 
 ### Test Coverage
 ```bash
@@ -347,13 +323,13 @@ pytest --cov=controllers --cov=interfaces --cov=simulation tests/
 
 ---
 
-## 📖 Citation
+## Citation
 
 If you use this work in your research, please cite:
 
 ```bibtex
 @software{multi_level_flight_control,
-  author = {Your Name},
+  author = {Lucas Wright},
   title = {Multi-Level Flight Control with Hybrid Classical and RL Controllers},
   year = {2025},
   url = {https://github.com/yourusername/controls}
@@ -362,7 +338,7 @@ If you use this work in your research, please cite:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Development environment setup
@@ -372,25 +348,20 @@ Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
-**Credits**:
-- **dRehmFlight** by Nicholas Rehm - Flight controller algorithms (original license retained)
-- **JSBSim** - Flight dynamics simulation
+## Acknowledgments:
+- **dRehmFlight** by Nicholas Rehm - Inspiration for cascaded control architecture design
+- **JSBSim** - Flight dynamics simulation for validation
 - **Pybind11** - C++/Python bindings
 
 ---
 
-## 📧 Contact
+## Contact
 
-For questions, issues, or collaboration inquiries:
-- **GitHub Issues**: [https://github.com/yourusername/controls/issues](https://github.com/yourusername/controls/issues)
-- **Email**: your.email@example.com
+For questions, bug reports, or discussions:
+- **GitHub Issues**: Bug reports and feature requests
+- **GitHub Discussions**: General questions and research discussions
 
----
-
-## 🌟 Star History
-
-If you find this project useful for your research or learning, please consider giving it a star!

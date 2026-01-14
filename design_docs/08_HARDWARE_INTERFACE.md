@@ -768,7 +768,7 @@ class PreFlightChecker:
         if voltage < 10.5:
             return False, f"✗ Battery low: {voltage:.1f}V"
         elif voltage < 11.0:
-            return True, f"⚠ Battery OK but low: {voltage:.1f}V"
+            return True, f"Warning: Battery OK but low: {voltage:.1f}V"
         else:
             return True, f"✓ Battery OK: {voltage:.1f}V"
 
@@ -885,6 +885,6 @@ def test_kill_switch():
 
 ---
 
-**Document Status**: ✅ Complete
+**Document Status**: Complete
 **Last Updated**: 2025-10-09
 **Related Documents**: 01_ARCHITECTURE.md, 02_ABSTRACTION_LAYERS.md, 11_DEPLOYMENT.md

@@ -194,7 +194,7 @@ def main():
 
             # Get state, compute control, step simulation
             state = backends[aircraft_id].get_state()
-            surfaces = agents[aircraft_id].compute_action(command, state)
+            surfaces = agents[aircraft_id].compute_action(command, state, dt=dt)
             backends[aircraft_id].set_controls(surfaces)
             true_state = backends[aircraft_id].step(dt)
             sensors[aircraft_id].update(true_state)
@@ -286,12 +286,12 @@ def main():
     if viz_3d:
         print(f"  - 3D screenshot: examples/multi_aircraft_3d.png")
 
-    print(f"\n✅ Phase 4: Visualization & Monitoring system working!")
-    print(f"   - Multi-aircraft logging ✅")
-    print(f"   - Real-time visualization ✅")
-    print(f"   - Aircraft registry ✅")
-    print(f"   - Replay system ✅")
-    print(f"   - Data export ✅")
+    print(f"\nPhase 4: Visualization & Monitoring system working!")
+    print(f"   - Multi-aircraft logging")
+    print(f"   - Real-time visualization")
+    print(f"   - Aircraft registry")
+    print(f"   - Replay system")
+    print(f"   - Data export")
 
     # Keep plots open
     print("\nClose plots to exit...")

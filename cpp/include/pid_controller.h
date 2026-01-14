@@ -1,8 +1,11 @@
 /**
  * @file pid_controller.h
  * @brief PID controller implementation for aircraft control
+ * @author Lucas Wright
+ * @copyright Copyright (c) 2025 Lucas Wright. Licensed under the MIT License.
  *
- * High-performance C++ PID controller based on dRehmFlight architecture.
+ * High-performance C++ PID controller for cascaded flight control.
+ * Control architecture inspired by dRehmFlight by Nicholas Rehm.
  * Designed for 100-500 Hz update rates on embedded systems.
  */
 

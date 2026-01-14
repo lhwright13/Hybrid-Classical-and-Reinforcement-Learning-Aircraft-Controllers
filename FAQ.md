@@ -53,7 +53,7 @@ This is a research platform for developing and comparing flight control algorith
 
 **Not yet** - Phase 6 (Hardware Interface) is planned but not implemented. Currently simulation-only.
 
-**Future**: Hardware integration is planned with Teensy 4.1 + MAVLink. See [ROADMAP.md](ROADMAP.md#phase-6-hardware-interface-planned).
+**Future**: Hardware integration is planned with Teensy 4.1 + MAVLink. See [Implementation Roadmap](design_docs/12_IMPLEMENTATION_ROADMAP.md).
 
 ### Is this safe for real flight?
 
@@ -407,27 +407,23 @@ p.sort_stats('cumulative').print_stats(20)
 **Depends on your research question:**
 
 **Level 4 (Rate)**:
-- ✅ Fast learning (dense rewards)
-- ✅ High sample efficiency
-- ❌ Low-level only (can't do waypoint nav)
+- **Pros**: Fast learning (dense rewards), high sample efficiency
+- **Cons**: Low-level only (can't do waypoint nav)
 - **Best for**: Fast response, acrobatics, tight control
 
 **Level 3 (Attitude)**:
-- ✅ Still relatively fast learning
-- ✅ More generalizable than L4
-- ❌ Sparser rewards than L4
+- **Pros**: Still relatively fast learning, more generalizable than L4
+- **Cons**: Sparser rewards than L4
 - **Best for**: Smooth flight, maneuvers
 
 **Level 2 (HSA)**:
-- ✅ High-level behaviors
-- ❌ Very sparse rewards
-- ❌ Slow learning
+- **Pros**: High-level behaviors
+- **Cons**: Very sparse rewards, slow learning
 - **Best for**: Fuel optimization, loitering
 
 **Level 1 (Waypoint)**:
-- ✅ End-to-end navigation
-- ❌ Extremely sparse rewards
-- ❌ Very slow learning
+- **Pros**: End-to-end navigation
+- **Cons**: Extremely sparse rewards, very slow learning
 - **Best for**: Path planning, obstacle avoidance
 
 **Recommendation**: Start with L4 (Rate) for fastest results, then try higher levels.
@@ -500,7 +496,7 @@ measured_position = sensor.sense(state)
 
 ### When will hardware support be added?
 
-**Phase 6** (Hardware Interface) is planned but not yet started. See [ROADMAP.md](ROADMAP.md#phase-6-hardware-interface-planned).
+**Phase 6** (Hardware Interface) is planned but not yet started. See [Implementation Roadmap](design_docs/12_IMPLEMENTATION_ROADMAP.md).
 
 **Estimated timeline**: 6-12 months depending on resources.
 
@@ -555,7 +551,6 @@ torch.onnx.export(
 
 - **GitHub Discussions**: General questions, ideas, research discussions
 - **GitHub Issues**: Bug reports, feature requests
-- **Email**: For private inquiries or collaboration
 
 ### How to get help effectively
 

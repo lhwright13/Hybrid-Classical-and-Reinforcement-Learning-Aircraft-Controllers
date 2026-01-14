@@ -1,8 +1,10 @@
 """Level 2: HSA Control Agent - Heading, Speed, Altitude control."""
 
 import numpy as np
+import logging
 from controllers.base_agent import BaseAgent
-from controllers.attitude_agent import AttitudeAgent, wrap_angle
+from controllers.attitude_agent import AttitudeAgent
+from controllers.utils import wrap_angle, validate_command
 from controllers.types import (
     ControlMode, ControlCommand, AircraftState,
     ControlSurfaces, ControllerConfig
@@ -10,6 +12,8 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
+
+logger = logging.getLogger(__name__)
 
 
 class HSAAgent(BaseAgent):
@@ -54,8 +58,10 @@ class HSAAgent(BaseAgent):
         )
         heading_config.integral_min = -config.heading_gains.i_limit
         heading_config.integral_max = config.heading_gains.i_limit
-        heading_config.output_min = -np.radians(10)  # 10° max bank (balance between turn radius and stability)
-        heading_config.output_max = np.radians(10)
+        # Use configured max bank angle for coordinated turns
+        max_bank_rad = np.radians(config.max_bank_angle_hsa)
+        heading_config.output_min = -max_bank_rad
+        heading_config.output_max = max_bank_rad
         self.heading_pid = acb.PIDController(heading_config)
 
         # === TECS (Total Energy Control System) ===
@@ -82,15 +88,16 @@ class HSAAgent(BaseAgent):
         )
         balance_config.integral_min = -10.0
         balance_config.integral_max = 10.0
-        balance_config.output_min = -np.radians(10)
-        balance_config.output_max = np.radians(10)
+        balance_config.output_min = -max_bank_rad
+        balance_config.output_max = max_bank_rad
         self.balance_pid = acb.PIDController(balance_config)
 
         # Inner loop: Attitude controller (Level 3)
         self.attitude_agent = AttitudeAgent(config)
 
-        # Baseline throttle - standard cruise setting (TUNED: 0.5→0.3→0.2 for 12 m/s cruise)
-        self.baseline_throttle = 0.2
+        # Store config values for use in compute_action
+        self.max_bank_rad = max_bank_rad
+        self.baseline_throttle = config.baseline_throttle
 
     def get_control_level(self) -> ControlMode:
         """Return control level.
@@ -127,6 +134,9 @@ class HSAAgent(BaseAgent):
         assert command.mode == ControlMode.HSA, \
             f"HSA agent expects HSA mode, got {command.mode}"
 
+        # Validate required command fields
+        validate_command(command, "HSA", ["heading", "altitude", "speed"])
+
         # === Heading Control ===
         # Compute heading error (wrap to [-π, π])
         heading_error = wrap_angle(command.heading - state.heading)
@@ -136,8 +146,8 @@ class HSAAgent(BaseAgent):
         # Simplified: use heading error to command roll
         roll_angle = self.heading_pid.compute(command.heading, state.heading, dt)
 
-        # Limit roll angle (10° bank for balance)
-        roll_angle = np.clip(roll_angle, -np.radians(10), np.radians(10))
+        # Limit roll angle using configured max bank
+        roll_angle = np.clip(roll_angle, -self.max_bank_rad, self.max_bank_rad)
 
         # === TECS (Total Energy Control System) ===
         # Treats altitude and speed as a coupled energy problem
@@ -195,8 +205,8 @@ class HSAAgent(BaseAgent):
             load_factor = 1.0 / cos_roll
             pitch_angle += 0.05 * (load_factor - 1.0)  # Gentle compensation
 
-        # Limit pitch angle
-        pitch_angle = np.clip(pitch_angle, -np.radians(10), np.radians(10))
+        # Limit pitch angle using configured max bank (symmetrical limit)
+        pitch_angle = np.clip(pitch_angle, -self.max_bank_rad, self.max_bank_rad)
 
         # === Yaw Coordination ===
         # Command yaw to track current yaw (effectively disables active yaw control)

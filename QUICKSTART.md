@@ -353,4 +353,4 @@ Now that you have the basics running, explore:
 4. **Validate Physics** - Run JSBSim comparisons in `validation/`
 5. **Add New Agents** - Implement custom controllers using `BaseAgent` interface
 
-Happy flying! 🛩️
+Happy flying!

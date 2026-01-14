@@ -79,7 +79,7 @@ Agent → [Sensor Interface]   → {Perfect Sim | Noisy Sim | Real Sensors}
 
 ### 1. Multi-Level Control Architecture
 - 4 distinct control levels with well-defined interfaces
-- Classical controllers at each level (from dRehmFlight)
+- Classical controllers at each level (inspired by industry-standard designs)
 - RL agents can replace or augment any level
 - Hierarchical composition of levels
 
@@ -165,12 +165,12 @@ Integrating new agents or aircraft models. Needs clear interfaces and integratio
 
 The project is successful if:
 
-1. ✅ **An RL agent can be trained at ANY control level (1-4) and deployed to real hardware**
-2. ✅ **Switching from simulation to hardware requires ONLY config changes (zero code changes)**
-3. ✅ **A new agent can be integrated in < 1 day using the integration guide**
-4. ✅ **Hierarchical agents can be composed from single-level agents**
-5. ✅ **Performance baselines exist for classical controllers at all levels**
-6. ✅ **All experiments are reproducible from config files**
+1. **An RL agent can be trained at ANY control level (1-4) and deployed to real hardware**
+2. **Switching from simulation to hardware requires ONLY config changes (zero code changes)**
+3. **A new agent can be integrated in < 1 day using the integration guide**
+4. **Hierarchical agents can be composed from single-level agents**
+5. **Performance baselines exist for classical controllers at all levels**
+6. **All experiments are reproducible from config files**
 
 ## Document Reading Guide
 
@@ -216,6 +216,6 @@ After reading this overview:
 
 ---
 
-**Document Status**: ✅ Complete
+**Document Status**: Complete
 **Last Updated**: 2025-10-09
 **Related Documents**: All (entry point)

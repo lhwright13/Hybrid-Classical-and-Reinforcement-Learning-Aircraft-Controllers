@@ -130,11 +130,13 @@ def run_step_response(agent, agent_name: str, duration: float = 5.0) -> Dict:
     for i in range(steps):
         t = i * dt
 
-        # Compute control action
-        surfaces = agent.compute_action(command, state)
+        # Compute control action (pass dt for correct PID behavior)
+        # Note: RL agents may ignore dt parameter
+        surfaces = agent.compute_action(command, state, dt=dt)
 
         # Step simulation
-        backend.step(surfaces, dt)
+        backend.set_controls(surfaces)
+        backend.step(dt)
         state = backend.get_state()
 
         # Log data
@@ -423,7 +425,7 @@ def main():
 
     # Try to run RL test
     if RL_AVAILABLE and Path(args.model).exists():
-        print(f"\n📊 Loading RL model from: {args.model}")
+        print(f"\nLoading RL model from: {args.model}")
 
         try:
             rl_agent = LearnedRateAgent(
@@ -436,16 +438,16 @@ def main():
             results.append(rl_result)
 
         except Exception as e:
-            print(f"\n⚠️  Warning: Could not load RL model: {e}")
+            print(f"\nWarning: Warning: Could not load RL model: {e}")
             print("    Continuing with PID-only comparison.")
 
     elif not RL_AVAILABLE:
-        print(f"\n⚠️  Warning: RL dependencies not installed.")
+        print(f"\nWarning: Warning: RL dependencies not installed.")
         print("    Install with: pip install stable-baselines3[extra] sb3-contrib")
         print("    Continuing with PID-only demonstration.")
 
     else:
-        print(f"\n⚠️  Warning: RL model not found at: {args.model}")
+        print(f"\nWarning: Warning: RL model not found at: {args.model}")
         print("    Train a model first with:")
         print("      cd learned_controllers")
         print("      python train_rate.py")
@@ -476,7 +478,7 @@ def main():
         print(f"Precision: PID has better steady-state accuracy")
         print(f"Response: RL achieves faster initial response with some overshoot")
 
-        print("\n💡 Key Insight:")
+        print("\nKey Insight:")
         print("   RL excels at fast response, PID excels at precision and smoothness.")
         print("   Best approach: Hybrid architecture leveraging strengths of both!")
 

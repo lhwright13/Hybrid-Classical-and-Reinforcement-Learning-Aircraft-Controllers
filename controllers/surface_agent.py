@@ -50,13 +50,15 @@ class SurfaceAgent(BaseAgent):
     def compute_action(
         self,
         command: ControlCommand,
-        state: AircraftState
+        state: AircraftState,
+        dt: float = None
     ) -> ControlSurfaces:
         """Apply surface commands directly with saturation.
 
         Args:
             command: Surface control command
             state: Current aircraft state (not used at this level)
+            dt: Time step (not used at this level, included for API compatibility)
 
         Returns:
             ControlSurfaces: Saturated surface deflections

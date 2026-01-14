@@ -5,7 +5,7 @@
 This document specifies the implementation of classical PID-based flight controllers for all **5 control levels**. These controllers serve as:
 1. **Baselines** for RL agent comparison
 2. **Safety fallbacks** for hybrid agents
-3. **Building blocks** extracted from dRehmFlight
+3. **Building blocks** inspired by industry-standard flight controllers like dRehmFlight
 
 ## 5-Level Cascaded Control Architecture
 
@@ -23,24 +23,24 @@ Level 1: Waypoint → Level 2: HSA → Level 3: Attitude (Angle) → Level 4: Ra
 
 This matches Betaflight, ArduPilot, PX4, and dRehmFlight architectures.
 
-## dRehmFlight Integration
+## Control Architecture Design
 
-### Code Extraction Strategy
+### Implementation Strategy
 
-We extract proven PID algorithms from dRehmFlight and adapt them to our multi-level architecture.
+We implement proven cascaded PID control patterns similar to industry-standard flight controllers (dRehmFlight, Betaflight, ArduPilot, PX4).
 
-**Source Files** (from dRehmFlight):
-- `controlANGLE()` - Angle mode PID (outer loop)
-- `controlRATE()` - Rate mode PID (inner loop)
-- `controlMixer()` - Vehicle-specific mixing
-- PID gains and tuning parameters
+**Control Hierarchy** (inspired by dRehmFlight):
+- Angle mode PID (outer loop)
+- Rate mode PID (inner loop)
+- Vehicle-specific mixing
+- Standard PID gains and tuning patterns
 
-**Adaptation Strategy**:
-1. Extract C++ PID core (performance-critical)
+**Implementation Strategy**:
+1. Implement C++ PID core for performance-critical inner loops
 2. Wrap in Pybind11 for Python access
-3. Create Python controllers for Levels 1-2
+3. Create Python controllers for Levels 1-2 (waypoint, HSA)
 4. Implement Level 3 (angle PID) in Python with C++ backend
-5. Keep Level 4 (rate PID) in C++ for high-frequency control
+5. Keep Level 4 (rate PID) in C++ for high-frequency control (1000 Hz)
 6. Keep Level 5 (mixer) in C++
 
 ## Level 5: Control Mixer (C++)
@@ -603,7 +603,7 @@ altitude:
 
 ---
 
-**Document Status**: ✅ Complete
+**Document Status**: Complete
 **Last Updated**: 2025-10-09
 **Related Documents**:
 - 03_CONTROL_HIERARCHY.md (control levels)

@@ -19,9 +19,13 @@ Not modeled (for simplicity):
 """
 
 import numpy as np
+import logging
 from typing import Optional
 from dataclasses import dataclass
 from controllers.types import AircraftState, ControlSurfaces
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,6 +59,10 @@ class AircraftParams:
     cn_rudder: float = -0.1  # Yaw moment per rudder (1/rad)
     cl_aileron: float = 0.15  # Roll moment per aileron (1/rad)
 
+    # Stability derivatives - lateral-directional
+    cn_beta: float = -0.12  # Weathercock stability (1/rad) - yaw moment due to sideslip
+    cl_beta: float = -0.10  # Dihedral effect (1/rad) - roll moment due to sideslip
+
     # Damping coefficients (stabilizing) - HIGH for maximum stability
     damping_roll: float = -2.0  # Roll damping
     damping_pitch: float = -8.0  # Pitch damping
@@ -66,6 +74,64 @@ class AircraftParams:
     # Environment
     air_density: float = 1.225  # kg/m³ (sea level)
     gravity: float = 9.81  # m/s²
+
+    # =============================================================================
+    # Numerical Stability and Safety Limits
+    # =============================================================================
+
+    # Minimum values for numerical stability (prevent divide-by-zero)
+    min_airspeed_aero: float = 10.0  # m/s - minimum airspeed for aero calculations
+    min_u_velocity: float = 0.1  # m/s - minimum forward velocity to prevent singularity
+
+    # Control surface deflection limits (degrees)
+    max_elevator_deflection: float = 30.0  # degrees
+    max_aileron_deflection: float = 30.0  # degrees
+    max_rudder_deflection: float = 30.0  # degrees
+
+    # Propeller thrust model
+    thrust_reference_velocity: float = 15.0  # m/s - reference velocity for thrust decay
+
+    # State variable safety limits
+    max_velocity: float = 100.0  # m/s - maximum body frame velocity
+    max_angular_rate: float = 360.0  # deg/s - maximum angular rate
+    max_pitch_angle: float = 85.0  # deg - maximum pitch to prevent gimbal lock
+    max_alpha: float = 30.0  # deg - maximum angle of attack (prevents unrealistic aero)
+
+    # Derivative limits (prevent numerical explosion)
+    max_acceleration: float = 50.0  # m/s² - maximum acceleration
+    max_angular_acceleration: float = 1000.0  # rad/s² - maximum angular acceleration
+
+    # Timestep limits
+    max_timestep: float = 1.0  # seconds - maximum allowed timestep
+    min_timestep: float = 1e-6  # seconds - minimum allowed timestep
+
+    def __post_init__(self):
+        """Validate parameters after initialization."""
+        # Mass properties validation
+        if self.mass <= 0:
+            raise ValueError(f"Mass must be positive, got {self.mass}")
+        if self.inertia_xx <= 0 or self.inertia_yy <= 0 or self.inertia_zz <= 0:
+            raise ValueError("All inertia values must be positive")
+
+        # Aerodynamic properties validation
+        if self.wing_area <= 0:
+            raise ValueError(f"Wing area must be positive, got {self.wing_area}")
+        if self.wing_span <= 0:
+            raise ValueError(f"Wing span must be positive, got {self.wing_span}")
+        if self.chord <= 0:
+            raise ValueError(f"Chord must be positive, got {self.chord}")
+
+        # Environment validation
+        if not (0 < self.air_density < 10):
+            raise ValueError(f"Invalid air density: {self.air_density} kg/m³")
+        if not (0 < self.gravity < 20):
+            raise ValueError(f"Invalid gravity: {self.gravity} m/s²")
+
+        # Thrust validation
+        if self.max_thrust < 0:
+            raise ValueError(f"Max thrust cannot be negative, got {self.max_thrust}")
+
+        logger.info(f"AircraftParams validated: mass={self.mass}kg, wing_area={self.wing_area}m²")
 
 
 class Simplified6DOF:
@@ -100,6 +166,14 @@ class Simplified6DOF:
 
         # Time
         self.time = 0.0
+
+        # Pre-computed radian conversions (params don't change during simulation)
+        self._max_pitch_rad = np.radians(self.params.max_pitch_angle)
+        self._max_rate_rad = np.radians(self.params.max_angular_rate)
+        self._max_alpha_rad = np.radians(self.params.max_alpha)
+        self._max_elevator_rad = np.radians(self.params.max_elevator_deflection)
+        self._max_aileron_rad = np.radians(self.params.max_aileron_deflection)
+        self._max_rudder_rad = np.radians(self.params.max_rudder_deflection)
 
     def reset(self, initial_state: Optional[AircraftState] = None) -> None:
         """Reset simulator to initial state.
@@ -144,11 +218,21 @@ class Simplified6DOF:
         """Advance simulation by dt seconds using RK4 integration.
 
         Args:
-            dt: Time step (seconds)
+            dt: Time step (seconds), must be in range (min_timestep, max_timestep]
 
         Returns:
             Updated aircraft state
+
+        Raises:
+            ValueError: If dt is outside valid range
         """
+        # Validate timestep
+        if dt <= self.params.min_timestep or dt > self.params.max_timestep:
+            raise ValueError(
+                f"Invalid timestep dt={dt:.6f}s, must be in "
+                f"({self.params.min_timestep}, {self.params.max_timestep}]"
+            )
+
         # RK4 integration for better accuracy
         k1 = self._dynamics(self.state, self.controls)
         k2 = self._dynamics(self.state + 0.5 * dt * k1, self.controls)
@@ -162,23 +246,37 @@ class Simplified6DOF:
         # Position (NED) - no strict limits but check for NaN
         self.state[0:3] = np.nan_to_num(self.state[0:3], nan=0.0, posinf=10000.0, neginf=-10000.0)
 
-        # Velocity (body frame) - realistic limits
-        self.state[3:6] = np.clip(self.state[3:6], -100.0, 100.0)  # ±100 m/s
+        # Velocity (body frame) - use configured limits
+        max_vel = self.params.max_velocity
+        self.state[3:6] = np.clip(self.state[3:6], -max_vel, max_vel)
 
         # Attitude (Euler angles) - wrap and clamp
         # Roll: wrap to [-π, π]
         self.state[6] = np.arctan2(np.sin(self.state[6]), np.cos(self.state[6]))
         # Pitch: clamp to safe range (avoid gimbal lock)
-        self.state[7] = np.clip(self.state[7], np.radians(-85), np.radians(85))
+        self.state[7] = np.clip(self.state[7], -self._max_pitch_rad, self._max_pitch_rad)
         # Yaw: wrap to [-π, π]
         self.state[8] = np.arctan2(np.sin(self.state[8]), np.cos(self.state[8]))
 
-        # Angular rates - realistic limits
-        self.state[9:12] = np.clip(self.state[9:12], np.radians(-360), np.radians(360))  # ±360°/s
+        # Angular rates - use configured limits
+        self.state[9:12] = np.clip(self.state[9:12], -self._max_rate_rad, self._max_rate_rad)
+
+        # Ground collision detection
+        altitude = -self.state[2]  # NED: down is positive, altitude is negative of down
+        if altitude < 0:
+            logger.error(
+                f"Ground collision detected! Altitude: {altitude:.2f}m, "
+                f"Time: {self.time:.2f}s - Resetting to ground level"
+            )
+            self.state[2] = 0.0  # Reset to ground level (down = 0)
+            self.state[5] = max(0.0, self.state[5])  # Zero or reverse vertical velocity (w)
 
         # Final NaN check
         if not np.all(np.isfinite(self.state)):
-            print("ERROR: Non-finite state detected, resetting to safe values")
+            logger.error(
+                f"Non-finite state detected at t={self.time:.2f}s, "
+                f"resetting to safe values"
+            )
             self.state = np.nan_to_num(self.state, nan=0.0, posinf=0.0, neginf=0.0)
 
         return self.get_state()
@@ -200,12 +298,14 @@ class Simplified6DOF:
         # Altitude (positive up, NED has down positive)
         altitude = -position[2]
 
-        # Compute heading from ground velocity in NED frame
+        # Compute heading and ground speed from ground velocity in NED frame
         # Transform body velocity to NED frame
         velocity_ned = self._body_to_ned(velocity, attitude)
         # Heading: arctan2(east, north) in NED convention
         # 0° = North, 90° = East, 180° = South, 270° = West
         heading = np.arctan2(velocity_ned[1], velocity_ned[0])
+        # Ground speed: horizontal velocity magnitude (ignores vertical component)
+        ground_speed = np.linalg.norm(velocity_ned[:2])
 
         return AircraftState(
             time=self.time,
@@ -215,6 +315,7 @@ class Simplified6DOF:
             angular_rate=angular_rate,
             airspeed=airspeed,
             altitude=altitude,
+            ground_speed=ground_speed,
             heading=heading
         )
 
@@ -243,13 +344,14 @@ class Simplified6DOF:
         # Airspeed and angles
         airspeed = np.linalg.norm(velocity)
         # Use consistent minimum airspeed for all calculations
-        safe_airspeed = max(airspeed, 10.0)  # Use at least 10 m/s for all aero calculations
+        safe_airspeed = max(airspeed, self.params.min_airspeed_aero)
 
         # Angle of attack (use safe minimum for u to handle near-vertical flight)
         # This prevents discontinuity when u ≈ 0
-        u_safe = max(abs(u), 0.1) * np.sign(u) if abs(u) > 1e-6 else 0.1
+        min_u = self.params.min_u_velocity
+        u_safe = max(abs(u), min_u) * np.sign(u) if abs(u) > 1e-6 else min_u
         alpha = np.arctan2(w, u_safe)
-        alpha = np.clip(alpha, np.radians(-30), np.radians(30))  # Limit to ±30°
+        alpha = np.clip(alpha, -self._max_alpha_rad, self._max_alpha_rad)
 
         # Sideslip angle (not actively used in current model, but calculated for completeness)
         beta = np.arcsin(np.clip(v / safe_airspeed, -1, 1))
@@ -260,7 +362,7 @@ class Simplified6DOF:
         # === Aerodynamic forces (body frame) ===
 
         # Lift coefficient (affected by alpha and elevator)
-        elevator_rad = controls.elevator * np.radians(30)  # Max 30 deg deflection
+        elevator_rad = controls.elevator * self._max_elevator_rad
         cl = self.params.cl_0 + self.params.cl_alpha * alpha + \
              self.params.cl_elevator * elevator_rad
 
@@ -268,7 +370,7 @@ class Simplified6DOF:
         cd = self.params.cd_0 + self.params.cd_alpha2 * alpha**2
 
         # Side force coefficient (affected by rudder)
-        rudder_rad = controls.rudder * np.radians(30)
+        rudder_rad = controls.rudder * self._max_rudder_rad
         cy = self.params.cy_rudder * rudder_rad
 
         # Aerodynamic forces
@@ -284,7 +386,7 @@ class Simplified6DOF:
         # === Thrust ===
         # Propeller thrust model: thrust decreases linearly with airspeed
         # This matches propeller physics where efficiency drops at high speed
-        V_ref = 15.0  # m/s - reference velocity (tuned to match JSBSim)
+        V_ref = self.params.thrust_reference_velocity
         # Linear decay is more aggressive than sqrt, better matches JSBSim behavior
         thrust_factor = V_ref / max(airspeed, V_ref)
         thrust = self.params.max_thrust * controls.throttle * thrust_factor
@@ -305,22 +407,24 @@ class Simplified6DOF:
 
         # === Moments (body frame) ===
 
-        aileron_rad = controls.aileron * np.radians(30)
+        aileron_rad = controls.aileron * self._max_aileron_rad
 
-        # Roll moment (aileron + damping)
+        # Roll moment (aileron + damping + dihedral effect)
         l_moment = q_dyn * self.params.wing_area * self.params.wing_span * \
                    (self.params.cl_aileron * aileron_rad + \
-                    self.params.damping_roll * p * self.params.wing_span / (2 * safe_airspeed))
+                    self.params.damping_roll * p * self.params.wing_span / (2 * safe_airspeed) + \
+                    self.params.cl_beta * beta)
 
         # Pitch moment (elevator + damping)
         m_moment = q_dyn * self.params.wing_area * self.params.chord * \
                    (self.params.cm_elevator * elevator_rad + \
                     self.params.damping_pitch * q * self.params.chord / (2 * safe_airspeed))
 
-        # Yaw moment (rudder + damping)
+        # Yaw moment (rudder + damping + weathercock stability)
         n_moment = q_dyn * self.params.wing_area * self.params.wing_span * \
                    (self.params.cn_rudder * rudder_rad + \
-                    self.params.damping_yaw * r * self.params.wing_span / (2 * safe_airspeed))
+                    self.params.damping_yaw * r * self.params.wing_span / (2 * safe_airspeed) + \
+                    self.params.cn_beta * beta)
 
         # === State derivatives ===
 
@@ -336,7 +440,7 @@ class Simplified6DOF:
 
         # Attitude derivative (Euler angle rates)
         # Clamp theta to avoid singularity at ±90° (gimbal lock)
-        theta_safe = np.clip(theta, np.radians(-85), np.radians(85))
+        theta_safe = np.clip(theta, -self._max_pitch_rad, self._max_pitch_rad)
         cos_theta = np.cos(theta_safe)
         tan_theta = np.tan(theta_safe)
 
@@ -354,17 +458,22 @@ class Simplified6DOF:
         ])
 
         # Clamp angular accelerations to prevent numerical explosion
-        rate_dot = np.clip(rate_dot, -1000.0, 1000.0)  # ±1000 rad/s²
+        max_ang_accel = self.params.max_angular_acceleration
+        rate_dot = np.clip(rate_dot, -max_ang_accel, max_ang_accel)
 
         # Clamp velocity derivatives
-        vel_dot = np.clip(vel_dot, -50.0, 50.0)  # ±50 m/s²
+        max_accel = self.params.max_acceleration
+        vel_dot = np.clip(vel_dot, -max_accel, max_accel)
 
         # Combine all derivatives
         state_dot = np.concatenate([pos_dot, vel_dot, att_dot, rate_dot])
 
         # Safety check: Replace NaN/Inf with zeros
         if not np.all(np.isfinite(state_dot)):
-            print("Warning: Non-finite values in state derivative, clamping to zero")
+            logger.warning(
+                f"Non-finite values in state derivative at t={self.time:.2f}s, "
+                f"clamping to zero"
+            )
             state_dot = np.nan_to_num(state_dot, nan=0.0, posinf=0.0, neginf=0.0)
 
         return state_dot

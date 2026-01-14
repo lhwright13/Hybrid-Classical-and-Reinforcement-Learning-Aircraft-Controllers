@@ -5,7 +5,7 @@ import numpy as np
 from abc import ABC
 from dataclasses import replace
 
-from interfaces.agent import BaseAgent
+from interfaces.agent import RLAgentInterface
 from interfaces.aircraft import AircraftInterface
 from interfaces.sensor import (
     SensorInterface,
@@ -25,7 +25,7 @@ from controllers.types import (
 # =============================================================================
 
 
-class ConcreteAgent(BaseAgent):
+class ConcreteAgent(RLAgentInterface):
     """Minimal concrete agent for testing."""
 
     def __init__(self, control_level: ControlMode):
@@ -48,13 +48,13 @@ class ConcreteAgent(BaseAgent):
         )
 
 
-class TestBaseAgent:
-    """Test BaseAgent interface."""
+class TestRLAgentInterface:
+    """Test RLAgentInterface interface."""
 
     def test_cannot_instantiate_abstract_class(self):
-        """BaseAgent is abstract and cannot be instantiated."""
+        """RLAgentInterface is abstract and cannot be instantiated."""
         with pytest.raises(TypeError):
-            BaseAgent()
+            RLAgentInterface()
 
     def test_concrete_agent_implements_required_methods(self):
         """Concrete agent must implement all abstract methods."""

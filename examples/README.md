@@ -4,7 +4,7 @@ This directory contains demonstration scripts showcasing different features of t
 
 ---
 
-## 📚 Recommended Learning Path
+## Recommended Learning Path
 
 Follow these examples in order to progressively learn the system:
 
@@ -23,7 +23,7 @@ graph LR
 
 ---
 
-## 🚀 Basic Examples (Start Here)
+## Basic Examples (Start Here)
 
 ### 1. `01_hello_controls.py` - Your First Simulation
 
@@ -65,7 +65,8 @@ command = ControlCommand(
 
 # Run simulation
 surfaces = agent.compute_action(command, state)
-state = aircraft.step(surfaces, dt=0.01)
+aircraft.set_controls(surfaces)
+state = aircraft.step(dt=0.01)
 ```
 
 ---
@@ -129,7 +130,7 @@ python examples/launch_pygame_gui.py
 
 ---
 
-## 🎯 Intermediate Examples
+## Intermediate Examples
 
 ### 4. `waypoint_mission.py` - Autonomous Navigation
 
@@ -277,7 +278,7 @@ python examples/plot_telemetry_live.py --log flight_log.h5
 
 ---
 
-## 📊 Comparison Table
+## Comparison Table
 
 | Example | Complexity | Run Time | Interactive | Concepts |
 |---------|-----------|----------|-------------|----------|
@@ -292,7 +293,7 @@ python examples/plot_telemetry_live.py --log flight_log.h5
 
 ---
 
-## 🔬 Research-Focused Examples
+## Research-Focused Examples
 
 ### Running Experiments
 
@@ -317,7 +318,7 @@ python examples/multi_aircraft_demo.py --num-aircraft 10 --formation line
 
 ---
 
-## 🛠️ Customization Guide
+## Customization Guide
 
 ### Modifying Examples
 
@@ -406,7 +407,8 @@ def main():
         surfaces = agent.compute_action(command, state)
 
         # Step simulation
-        state = aircraft.step(surfaces, dt)
+        aircraft.set_controls(surfaces)
+        state = aircraft.step(dt)
 
         # Log data
         history['time'].append(t)
@@ -472,7 +474,7 @@ export SDL_VIDEODRIVER=x11
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - **[QUICKSTART.md](../QUICKSTART.md)** - Installation and setup
 - **[Design Docs](../design_docs/README.md)** - System architecture
@@ -481,7 +483,7 @@ export SDL_VIDEODRIVER=x11
 
 ---
 
-## 🤝 Contributing Examples
+## Contributing Examples
 
 Have a cool example to share? We'd love to include it!
 
@@ -495,7 +497,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ---
 
-## 💡 Example Ideas for Future
+## Example Ideas for Future
 
 Want to contribute? Here are some example ideas:
 
@@ -509,4 +511,4 @@ Want to contribute? Here are some example ideas:
 
 ---
 
-Happy experimenting! 🛩️
+Happy experimenting! 

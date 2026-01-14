@@ -60,8 +60,8 @@ def run_closed_loop_simulation(
         state = aircraft.get_state()
         states.append(state)
 
-        # Compute control
-        surfaces = controller.compute_action(command, state)
+        # Compute control (pass dt for correct PID behavior)
+        surfaces = controller.compute_action(command, state, dt=dt)
         surfaces_list.append(surfaces)
 
         # Apply to aircraft

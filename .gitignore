@@ -319,3 +319,9 @@ learned_controllers/visualize/learning_curves/*.csv
 *.pkl
 *.pickle
 *.npz
+
+# Large 3D model files (use Git LFS if needed)
+*.glb
+*.obj
+*.fbx
+*.gltf

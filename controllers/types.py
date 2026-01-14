@@ -337,5 +337,14 @@ class ControllerConfig:
     max_pitch_rate: float = 180.0  # deg/s for rate mode
     max_yaw_rate: float = 160.0  # deg/s
 
-    # Control loop rate
-    dt: float = 0.01  # 100 Hz default
+    # Control loop rates
+    dt: float = 0.01  # 100 Hz default for outer loops (attitude, HSA)
+    rate_loop_dt: float = 0.001  # 1000 Hz for inner rate loop (tight control)
+
+    # HSA controller parameters
+    max_bank_angle_hsa: float = 10.0  # degrees - max bank for coordinated turns
+    baseline_throttle: float = 0.2  # 0-1 - baseline throttle for speed control
+
+    # Waypoint navigation parameters
+    waypoint_acceptance_radius: float = 10.0  # meters - default waypoint capture radius
+    proportional_navigation_gain: float = 3.0  # N - proportional navigation gain

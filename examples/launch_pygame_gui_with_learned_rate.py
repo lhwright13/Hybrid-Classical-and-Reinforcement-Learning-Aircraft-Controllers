@@ -201,8 +201,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model',
         type=str,
-        default='learned_controllers/models/best_rate_controller/best_model.zip',
-        help='Path to trained model (default: best_rate_controller/best_model.zip)'
+        default='learned_controllers/models/checkpoints/final_model.zip',
+        help='Path to trained model (default: checkpoints/final_model.zip)'
     )
     parser.add_argument(
         '--log',

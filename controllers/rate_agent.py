@@ -1,6 +1,7 @@
 """Level 4: Rate Control Agent - Inner loop rate control."""
 
 import numpy as np
+import logging
 from controllers.base_agent import BaseAgent
 from controllers.types import (
     ControlMode, ControlCommand, AircraftState,
@@ -9,7 +10,9 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
-from controllers.utils.pid_utils import create_pid_config
+from controllers.utils import create_pid_config, validate_command
+
+logger = logging.getLogger(__name__)
 
 
 class RateAgent(BaseAgent):
@@ -65,13 +68,16 @@ class RateAgent(BaseAgent):
     def compute_action(
         self,
         command: ControlCommand,
-        state: AircraftState
+        state: AircraftState,
+        dt: float = None
     ) -> ControlSurfaces:
         """Compute surface deflections from rate commands.
 
         Args:
             command: Rate control command (p, q, r desired)
             state: Current aircraft state
+            dt: Time step in seconds. If None, uses config.rate_loop_dt.
+                IMPORTANT: Pass the actual simulation dt for correct PID behavior.
 
         Returns:
             ControlSurfaces: Control surface deflections
@@ -81,6 +87,9 @@ class RateAgent(BaseAgent):
         """
         assert command.mode == ControlMode.RATE, \
             f"Rate agent expects RATE mode, got {command.mode}"
+
+        # Validate required command fields
+        validate_command(command, "RATE", ["roll_rate", "pitch_rate", "yaw_rate"])
 
         # Rate setpoint (clip to rate limits)
         p_cmd = np.clip(command.roll_rate, -self.max_roll_rate, self.max_roll_rate)
@@ -93,8 +102,9 @@ class RateAgent(BaseAgent):
         rate_measurement = acb.Vector3(state.p, state.q, state.r)
 
         # PID control (C++ - high frequency for tight control)
-        dt = 0.001  # 1000 Hz for inner loop
-        output = self.rate_controller.compute(rate_setpoint, rate_measurement, dt)
+        # Use provided dt or fall back to configured rate_loop_dt
+        actual_dt = dt if dt is not None else self.config.rate_loop_dt
+        output = self.rate_controller.compute(rate_setpoint, rate_measurement, actual_dt)
 
         # Map PID output to surfaces
         # Output: roll → aileron, pitch → elevator, yaw → rudder

@@ -57,9 +57,9 @@ class LiveTelemetryPlotter:
         titles = [
             ('Altitude (m)', 'Time (s)', 'Altitude'),
             ('Airspeed (m/s)', 'Time (s)', 'Airspeed'),
-            ('Roll (deg)', 'Time (s)', 'Roll Angle ⚠ Watch for Oscillations!'),
-            ('Pitch (deg)', 'Time (s)', 'Pitch Angle ⚠ Watch for Oscillations!'),
-            ('Yaw (deg)', 'Time (s)', 'Yaw Angle ⚠ Watch for Oscillations!'),
+            ('Roll (deg)', 'Time (s)', 'Roll Angle Warning: Watch for Oscillations!'),
+            ('Pitch (deg)', 'Time (s)', 'Pitch Angle Warning: Watch for Oscillations!'),
+            ('Yaw (deg)', 'Time (s)', 'Yaw Angle Warning: Watch for Oscillations!'),
             ('Yaw Rate (deg/s)', 'Time (s)', 'Yaw Rate (Rate Mode Tuning)'),
             ('Roll Rate (deg/s)', 'Time (s)', 'Roll Rate (Rate Mode Tuning)'),
             ('Pitch Rate (deg/s)', 'Time (s)', 'Pitch Rate (Rate Mode Tuning)'),
@@ -182,7 +182,7 @@ class LiveTelemetryPlotter:
         self.axes[1, 0].axhline(y=0, color='k', linestyle='--', alpha=0.3)
         self.axes[1, 0].set_ylabel('Roll (deg)', fontsize=10)
         self.axes[1, 0].set_xlabel('Time (s)', fontsize=9)
-        self.axes[1, 0].set_title('Roll Angle ⚠ Watch for Oscillations!',
+        self.axes[1, 0].set_title('Roll Angle Warning: Watch for Oscillations!',
                                    fontsize=11, fontweight='bold', color='red')
         self.axes[1, 0].grid(True, alpha=0.3)
         self.axes[1, 0].legend(loc='upper right', fontsize=8)
@@ -196,7 +196,7 @@ class LiveTelemetryPlotter:
         self.axes[1, 1].axhline(y=0, color='k', linestyle='--', alpha=0.3)
         self.axes[1, 1].set_ylabel('Pitch (deg)', fontsize=10)
         self.axes[1, 1].set_xlabel('Time (s)', fontsize=9)
-        self.axes[1, 1].set_title('Pitch Angle ⚠ Watch for Oscillations!',
+        self.axes[1, 1].set_title('Pitch Angle Warning: Watch for Oscillations!',
                                    fontsize=11, fontweight='bold', color='green')
         self.axes[1, 1].grid(True, alpha=0.3)
         self.axes[1, 1].legend(loc='upper right', fontsize=8)
@@ -210,7 +210,7 @@ class LiveTelemetryPlotter:
         self.axes[2, 0].axhline(y=0, color='k', linestyle='--', alpha=0.3)
         self.axes[2, 0].set_ylabel('Yaw (deg)', fontsize=10)
         self.axes[2, 0].set_xlabel('Time (s)', fontsize=9)
-        self.axes[2, 0].set_title('Yaw Angle ⚠ Watch for Oscillations!',
+        self.axes[2, 0].set_title('Yaw Angle Warning: Watch for Oscillations!',
                                    fontsize=11, fontweight='bold', color='blue')
         self.axes[2, 0].grid(True, alpha=0.3)
         self.axes[2, 0].legend(loc='upper right', fontsize=8)

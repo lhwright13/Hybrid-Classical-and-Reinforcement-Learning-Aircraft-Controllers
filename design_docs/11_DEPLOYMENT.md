@@ -641,7 +641,7 @@ class SimToRealGapAnalyzer:
         # Success rate
         if gap["success_rate_diff"] < -0.15:
             recommendations.append(
-                "⚠ Large success rate gap detected. Consider:\n"
+                "Warning: Large success rate gap detected. Consider:\n"
                 "  - Increase domain randomization in simulation\n"
                 "  - Add actuator delay modeling\n"
                 "  - Increase sensor noise in training"
@@ -650,7 +650,7 @@ class SimToRealGapAnalyzer:
         # Tracking error
         if gap["tracking_error_ratio"] > 1.5:
             recommendations.append(
-                "⚠ Tracking error much higher on real hardware. Consider:\n"
+                "Warning: Tracking error much higher on real hardware. Consider:\n"
                 "  - Improve state estimation (tune EKF)\n"
                 "  - Add latency compensation\n"
                 "  - Retune controller gains"
@@ -659,7 +659,7 @@ class SimToRealGapAnalyzer:
         # Control effort
         if gap["control_effort_ratio"] > 1.3:
             recommendations.append(
-                "⚠ Higher control effort on real hardware. Consider:\n"
+                "Warning: Higher control effort on real hardware. Consider:\n"
                 "  - Increase control smoothing\n"
                 "  - Add rate limits on control changes\n"
                 "  - Check for measurement noise issues"
@@ -668,7 +668,7 @@ class SimToRealGapAnalyzer:
         # Episode length
         if gap["episode_length_ratio"] < 0.7:
             recommendations.append(
-                "⚠ Episodes terminating early on real hardware. Consider:\n"
+                "Warning: Episodes terminating early on real hardware. Consider:\n"
                 "  - Review safety limits (may be too strict)\n"
                 "  - Check for sensor failures\n"
                 "  - Validate hardware calibration"
@@ -809,6 +809,6 @@ deployment:
 
 ---
 
-**Document Status**: ✅ Complete
+**Document Status**: Complete
 **Last Updated**: 2025-10-09
 **Related Documents**: 06_RL_AGENT_TRAINING.md, 08_HARDWARE_INTERFACE.md, 09_DATA_FLOW.md

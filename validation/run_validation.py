@@ -65,23 +65,23 @@ def main():
 
     print(f"   Position RMSE: {metrics['position_3d_rmse']:.2f}m "
           f"(threshold: {expected['position_rmse_threshold']}m) "
-          f"{'✅ PASS' if position_pass else '❌ FAIL'}")
+          f"{'PASS' if position_pass else 'FAIL'}")
 
     print(f"   Attitude RMSE: {metrics['attitude_roll_rmse_deg']:.2f}° "
           f"(threshold: {expected['attitude_rmse_threshold']}°) "
-          f"{'✅ PASS' if attitude_pass else '❌ FAIL'}")
+          f"{'PASS' if attitude_pass else 'FAIL'}")
 
     print(f"   Correlation: {metrics['overall_correlation']:.3f} "
           f"(threshold: {expected['min_correlation']}) "
-          f"{'✅ PASS' if corr_pass else '❌ FAIL'}")
+          f"{'PASS' if corr_pass else 'FAIL'}")
 
     all_pass = position_pass and attitude_pass and corr_pass
 
     print("\n" + "=" * 70)
     if all_pass:
-        print("✅ VALIDATION PASSED - Simplified model matches JSBSim!")
+        print("VALIDATION PASSED - Simplified model matches JSBSim!")
     else:
-        print("⚠️  VALIDATION INCOMPLETE - Some metrics outside expected range")
+        print("Warning: VALIDATION INCOMPLETE - Some metrics outside expected range")
         print("   This may indicate tuning needed or limitations of simplified model")
     print("=" * 70)
 
@@ -94,7 +94,7 @@ def main():
     df_jsbsim.to_csv(output_dir / 'level_flight_jsbsim.csv', index=False)
 
     print(f"   Saved trajectories to: {output_dir}")
-    print("\n✅ Validation complete!")
+    print("\nValidation complete!")
 
     return 0 if all_pass else 1
 

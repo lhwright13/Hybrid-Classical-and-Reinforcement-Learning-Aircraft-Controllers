@@ -41,6 +41,22 @@ BLUE = (0, 61, 122)
 BROWN = (92, 64, 51)
 YELLOW = (255, 255, 0)
 
+# Command limits (degrees)
+MAX_ROLL_RATE_DEG = 60.0    # deg/s - max roll rate command
+MAX_PITCH_RATE_DEG = 30.0   # deg/s - max pitch rate command
+MAX_YAW_RATE_DEG = 10.0     # deg/s - max yaw rate command
+MAX_ROLL_ANGLE_DEG = 30.0   # deg - max roll angle command
+MAX_PITCH_ANGLE_DEG = 20.0  # deg - max pitch angle command
+MAX_YAW_ANGLE_DEG = 180.0   # deg - max yaw/heading command
+
+# GUI update rates
+COMMAND_LOOP_HZ = 30.0      # Hz - command send rate
+DISPLAY_FPS = 60            # frames per second for rendering
+
+# Display constants
+PITCH_SCALE = 3.5           # pixels per degree for artificial horizon
+M_PER_DEG_LAT = 111319.9    # meters per degree latitude (at equator)
+
 
 class Button:
     """Simple button widget."""
@@ -380,7 +396,7 @@ class ArtificialHorizon:
         self.rect = pygame.Rect(x, y, width, height)
         self.center_x = x + width // 2
         self.center_y = y + height // 2
-        self.pitch_scale = 3.5  # pixels per degree of pitch
+        self.pitch_scale = PITCH_SCALE
 
     def draw(self, surface, font, roll_deg, pitch_deg):
         """Draw professional artificial horizon with roll and pitch."""
@@ -541,14 +557,11 @@ def ned_to_latlon(north_m, east_m, lat_origin=0.0, lon_origin=0.0):
     Returns:
         (latitude, longitude) in degrees
     """
-    # Meters per degree at equator
-    m_per_deg_lat = 111319.9
-
     # Latitude is straightforward
-    lat = lat_origin + (north_m / m_per_deg_lat)
+    lat = lat_origin + (north_m / M_PER_DEG_LAT)
 
     # Longitude depends on latitude
-    m_per_deg_lon = m_per_deg_lat * np.cos(np.radians(lat))
+    m_per_deg_lon = M_PER_DEG_LAT * np.cos(np.radians(lat))
     lon = lon_origin + (east_m / m_per_deg_lon) if m_per_deg_lon > 0 else lon_origin
 
     return lat, lon
@@ -650,28 +663,26 @@ class FlightControlGUI:
                         throttle=self.throttle_slider.value
                     )
                 elif self.current_mode == ControlMode.RATE:
-                    # Use config rate limits: 60 deg/s roll, 30 deg/s pitch, 10 deg/s yaw
                     command = FlightCommand(
                         mode=self.current_mode,
-                        roll_rate=self.joystick.stick_x * np.radians(60),  # ±60 deg/s
-                        pitch_rate=self.joystick.stick_y * np.radians(30),  # ±30 deg/s
-                        yaw_rate=self.rudder_slider.value * np.radians(10),  # ±10 deg/s
+                        roll_rate=self.joystick.stick_x * np.radians(MAX_ROLL_RATE_DEG),
+                        pitch_rate=-self.joystick.stick_y * np.radians(MAX_PITCH_RATE_DEG),
+                        yaw_rate=self.rudder_slider.value * np.radians(MAX_YAW_RATE_DEG),
                         throttle=self.throttle_slider.value
                     )
                 elif self.current_mode == ControlMode.ATTITUDE:
-                    # Use config angle limits: 30 deg roll, 20 deg pitch
                     command = FlightCommand(
                         mode=self.current_mode,
-                        roll_angle=self.joystick.stick_x * np.radians(30),  # ±30 deg
-                        pitch_angle=-self.joystick.stick_y * np.radians(20),  # ±20 deg (inverted)
-                        yaw_angle=self.rudder_slider.value * np.radians(180),  # ±180 deg heading
+                        roll_angle=self.joystick.stick_x * np.radians(MAX_ROLL_ANGLE_DEG),
+                        pitch_angle=-self.joystick.stick_y * np.radians(MAX_PITCH_ANGLE_DEG),
+                        yaw_angle=self.rudder_slider.value * np.radians(MAX_YAW_ANGLE_DEG),
                         throttle=self.throttle_slider.value
                     )
 
                 self.sim_worker.send_command(command)
                 self.current_command = command  # Store for display
 
-            time.sleep(1.0 / 30.0)  # 30 Hz
+            time.sleep(1.0 / COMMAND_LOOP_HZ)
 
     def _handle_events(self):
         """Handle pygame events."""
@@ -679,14 +690,36 @@ class FlightControlGUI:
             if event.type == pygame.QUIT:
                 self.running = False
 
+            # Mouse wheel to adjust throttle
+            if event.type == pygame.MOUSEWHEEL:
+                # Adjust throttle by 5% per wheel click
+                self.throttle_slider.value += event.y * 0.05
+                self.throttle_slider.value = max(0.0, min(1.0, self.throttle_slider.value))
+
             # Toggle debug panel
             if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
                 self.show_debug = not self.show_debug
+
+            # Cycle control modes with 'M' key
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+                # Get list of all modes
+                modes = [ControlMode.SURFACE, ControlMode.RATE, ControlMode.ATTITUDE,
+                        ControlMode.HSA, ControlMode.WAYPOINT]
+                # Find current mode index and cycle to next
+                current_idx = modes.index(self.current_mode)
+                next_idx = (current_idx + 1) % len(modes)
+                self.current_mode = modes[next_idx]
+                # Update button colors
+                for btn in self.mode_buttons:
+                    btn.color = GREEN if btn.mode == self.current_mode else MED_GRAY
+                print(f"🔄 Switched to {self.current_mode.name} mode")
 
             # Toggle learned/PID controller (if available)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_l:
                 if hasattr(self.sim_worker, 'toggle_controller'):
                     self.sim_worker.toggle_controller()
+                else:
+                    print("Warning: Controller toggle not available (use SimulationWorkerWithLearned)")
 
             # Joystick
             if self.current_mode in [ControlMode.SURFACE, ControlMode.RATE, ControlMode.ATTITUDE]:
@@ -973,7 +1006,7 @@ class FlightControlGUI:
             self._handle_events()
             self._update_state()
             self._draw()
-            self.clock.tick(60)  # 60 FPS
+            self.clock.tick(DISPLAY_FPS)
 
         pygame.quit()
         sys.exit()
@@ -984,7 +1017,7 @@ if __name__ == '__main__':
     print(" " * 15 + "Flight Control Dashboard - Enhanced")
     print("=" * 70)
     print()
-    print("🚀 Features:")
+    print("Features:")
     print("   • Drag-and-drop joystick")
     print("   • Artificial horizon with roll rotation")
     print("   • 3D aircraft visualization")
@@ -992,9 +1025,13 @@ if __name__ == '__main__':
     print("   • Lat/Lon display")
     print("   • Press 'D' to toggle debug panel")
     print()
-    print("🎮 Controls:")
+    print("Controls:")
     print("   • Drag joystick to control pitch/roll")
     print("   • Drag sliders for throttle and rudder")
+    print("   • Mouse wheel to adjust throttle")
+    print("   • Press 'M' to cycle control modes (Surface→Rate→Attitude→HSA→Waypoint)")
+    print("   • Press 'L' to toggle RL/PID controllers (if available)")
+    print("   • Press 'D' to toggle debug panel")
     print("   • Click mode buttons to change control level")
     print("   • Type in text boxes for HSA/Waypoint")
     print("   • Click Reset to restart aircraft")

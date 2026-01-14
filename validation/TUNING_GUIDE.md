@@ -138,7 +138,7 @@ roll_angle = np.clip(roll_angle, -np.radians(10), np.radians(10))
 **Turn physics**:
 - Turn radius: R = V²/(g·tan(φ))
 - At 12 m/s, 10° bank → R = 82m
-- At 36 m/s, 10° bank → R = 750m ⚠️
+- At 36 m/s, 10° bank → R = 750m Warning:
 
 **Tuning**:
 - Increase bank angle → tighter turns (risk: instability)

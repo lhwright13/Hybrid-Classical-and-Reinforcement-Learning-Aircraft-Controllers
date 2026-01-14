@@ -899,7 +899,7 @@ L1: Waypoint → L2: HSA → L3: Attitude (Angle) → L4: Rate → L5: Surface
 
 ---
 
-**Document Status**: ✅ Updated to 5-level architecture
+**Document Status**: Updated to 5-level architecture
 **Last Updated**: 2025-10-11
 **Related Documents**:
 - 05_AGENT_INTERFACE_CONTROL.md (agent integration)
