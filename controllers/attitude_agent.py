@@ -1,7 +1,6 @@
 """Level 3: Attitude Control Agent - Angle mode (outer loop)."""
 
 import numpy as np
-import logging
 from controllers.base_agent import BaseAgent
 from controllers.rate_agent import RateAgent
 from controllers.types import (
@@ -12,8 +11,6 @@ from controllers.types import (
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
 from controllers.utils import create_pid_config, wrap_angle, validate_command
-
-logger = logging.getLogger(__name__)
 
 
 class AttitudeAgent(BaseAgent):

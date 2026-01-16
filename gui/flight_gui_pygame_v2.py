@@ -41,12 +41,12 @@ BLUE = (0, 61, 122)
 BROWN = (92, 64, 51)
 YELLOW = (255, 255, 0)
 
-# Command limits (degrees)
-MAX_ROLL_RATE_DEG = 60.0    # deg/s - max roll rate command
-MAX_PITCH_RATE_DEG = 30.0   # deg/s - max pitch rate command
-MAX_YAW_RATE_DEG = 10.0     # deg/s - max yaw rate command
-MAX_ROLL_ANGLE_DEG = 30.0   # deg - max roll angle command
-MAX_PITCH_ANGLE_DEG = 20.0  # deg - max pitch angle command
+# Command limits (degrees) - increased for responsive flight
+MAX_ROLL_RATE_DEG = 150.0   # deg/s - max roll rate command (aircraft can do 226)
+MAX_PITCH_RATE_DEG = 90.0   # deg/s - max pitch rate command
+MAX_YAW_RATE_DEG = 60.0     # deg/s - max yaw rate command (was way too low!)
+MAX_ROLL_ANGLE_DEG = 45.0   # deg - max roll angle command
+MAX_PITCH_ANGLE_DEG = 30.0  # deg - max pitch angle command
 MAX_YAW_ANGLE_DEG = 180.0   # deg - max yaw/heading command
 
 # GUI update rates
@@ -824,10 +824,10 @@ class FlightControlGUI:
         pygame.draw.rect(self.screen, BLACK, (420, 40, 440, 860), border_radius=10)
         pygame.draw.rect(self.screen, CYAN, (420, 40, 440, 860), 2, border_radius=10)
 
-        # Get state
-        roll = np.degrees(self.current_state.get('roll', 0))
-        pitch = np.degrees(self.current_state.get('pitch', 0))
-        yaw = np.degrees(self.current_state.get('yaw', 0))
+        # Get state (already in degrees from simulation_worker)
+        roll = self.current_state.get('roll', 0)
+        pitch = self.current_state.get('pitch', 0)
+        yaw = self.current_state.get('yaw', 0)
 
         # 3D aircraft view
         view_label = self.font_medium.render("3D Aircraft View", True, CYAN)
@@ -839,10 +839,10 @@ class FlightControlGUI:
         self.screen.blit(horizon_label, (560, 325))
         self.horizon.draw(self.screen, self.font_small, roll, pitch)
 
-        # Primary instruments
+        # Primary instruments (already in degrees from simulation_worker)
         alt = self.current_state.get('altitude', 0)
         airspeed = self.current_state.get('airspeed', 0)
-        heading = np.degrees(self.current_state.get('heading', 0))
+        heading = self.current_state.get('heading', 0)
 
         inst_y = 780
         alt_text = self.font_medium.render(f"Alt: {alt:.1f} m", True, CYAN)
@@ -960,7 +960,6 @@ class FlightControlGUI:
             debug_y = 450
             debug_label = self.font_medium.render("Debug Panel (Press D to hide)", True, YELLOW)
             self.screen.blit(debug_label, (890, debug_y))
-            # TODO: Add debug sliders for independent axis testing
 
         pygame.display.flip()
 

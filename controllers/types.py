@@ -298,36 +298,36 @@ class ControllerConfig:
     All PID gains and limits for the complete controller.
     """
 
-    # Angle mode PID gains
+    # Angle mode PID gains (outer loop - tuned for 1kHz update rate)
     roll_angle_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.2, ki=0.3, kd=0.05)
+        default_factory=lambda: PIDGains(kp=8.0, ki=2.0, kd=0.3)
     )
     pitch_angle_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.2, ki=0.3, kd=0.05)
+        default_factory=lambda: PIDGains(kp=6.0, ki=1.5, kd=0.2)
     )
 
-    # Rate mode PID gains
+    # Rate mode PID gains (tuned for standalone rate mode)
     roll_rate_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.15, ki=0.2, kd=0.0002)
+        default_factory=lambda: PIDGains(kp=1.3, ki=0.4, kd=0.012)
     )
     pitch_rate_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.15, ki=0.2, kd=0.0002)
+        default_factory=lambda: PIDGains(kp=0.6, ki=0.2, kd=0.008)
     )
 
-    # Yaw PID gains
+    # Yaw PID gains (stable config - low integral to prevent oscillation)
     yaw_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.3, ki=0.05, kd=0.00015)
+        default_factory=lambda: PIDGains(kp=1.6, ki=0.15, kd=0.01)
     )
 
     # HSA (Heading/Speed/Altitude) PID gains
     heading_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=1.2, ki=0.08, kd=0.3)
+        default_factory=lambda: PIDGains(kp=1.0, ki=0.05, kd=0.2)
     )
     speed_gains: PIDGains = field(
         default_factory=lambda: PIDGains(kp=0.1, ki=0.01, kd=0.0)
     )
     altitude_gains: PIDGains = field(
-        default_factory=lambda: PIDGains(kp=0.25, ki=0.02, kd=0.15)
+        default_factory=lambda: PIDGains(kp=0.2, ki=0.01, kd=0.1)
     )
 
     # Limits
@@ -342,7 +342,7 @@ class ControllerConfig:
     rate_loop_dt: float = 0.001  # 1000 Hz for inner rate loop (tight control)
 
     # HSA controller parameters
-    max_bank_angle_hsa: float = 10.0  # degrees - max bank for coordinated turns
+    max_bank_angle_hsa: float = 12.0  # degrees - max bank for turns (limited due to 6DOF stability)
     baseline_throttle: float = 0.2  # 0-1 - baseline throttle for speed control
 
     # Waypoint navigation parameters

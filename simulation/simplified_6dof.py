@@ -33,40 +33,50 @@ class AircraftParams:
     """Physical parameters for aircraft dynamics.
 
     These are simplified parameters for a small fixed-wing aircraft
-    (similar to a Cessna 172 or large RC plane).
+    configured as a "trainer" - inherently stable and easy to fly.
+
+    Stability Design:
+    - Positive static margin (Cm_alpha < 0) - pitch stable
+    - Weathercock stability (Cn_beta > 0) - yaw stable
+    - Dihedral effect (Cl_beta < 0) - roll stable
+    - Strong damping on all axes
     """
-    # Mass properties
-    mass: float = 10.0  # kg (typical for large RC aircraft)
-    inertia_xx: float = 0.5  # kg⋅m² (roll inertia)
-    inertia_yy: float = 1.0  # kg⋅m² (pitch inertia)
-    inertia_zz: float = 1.2  # kg⋅m² (yaw inertia)
+    # Mass properties - LIGHT for responsive handling
+    mass: float = 8.0  # kg (lighter aircraft)
+    inertia_xx: float = 0.4  # kg⋅m² (roll inertia - reduced for fast roll)
+    inertia_yy: float = 0.6  # kg⋅m² (pitch inertia - reduced for fast pitch)
+    inertia_zz: float = 0.7  # kg⋅m² (yaw inertia - reduced for fast yaw)
 
     # Aerodynamic reference
     wing_area: float = 0.5  # m²
     wing_span: float = 2.0  # m
     chord: float = 0.25  # m (mean aerodynamic chord)
 
-    # Aerodynamic coefficients (tuned to match JSBSim)
-    cl_0: float = 0.35  # Zero-alpha lift coefficient (increased for better lift)
-    cl_alpha: float = 5.0  # Lift curve slope (1/rad) - matches theory: 2π/(1+2/AR) for AR=8
-    cd_0: float = 0.025  # Parasitic drag coefficient (reduced - cleaner aircraft)
-    cd_alpha2: float = 0.05  # Induced drag coefficient - matches CL²/(π×AR×e) with AR=8, e=0.8
+    # Aerodynamic coefficients
+    cl_0: float = 0.4  # Zero-alpha lift coefficient
+    cl_alpha: float = 5.0  # Lift curve slope (1/rad)
+    cd_0: float = 0.025  # Parasitic drag coefficient
+    cd_alpha2: float = 0.04  # Induced drag coefficient
 
-    # Control effectiveness - CONSERVATIVE for stability
-    cl_elevator: float = 0.5  # Lift change per elevator deflection (1/rad)
-    cm_elevator: float = -1.0  # Pitch moment per elevator (1/rad)
-    cy_rudder: float = 0.3  # Side force per rudder (1/rad)
-    cn_rudder: float = -0.1  # Yaw moment per rudder (1/rad)
-    cl_aileron: float = 0.15  # Roll moment per aileron (1/rad)
+    # Control effectiveness - HIGH for crisp response
+    cl_elevator: float = 0.6  # Lift change per elevator deflection (1/rad)
+    cm_elevator: float = -2.0  # Pitch moment per elevator (1/rad)
+    cy_rudder: float = 0.5  # Side force per rudder (1/rad)
+    cn_rudder: float = -0.40  # Yaw moment per rudder (1/rad) - HIGH for fast yaw
+    cl_aileron: float = 0.50  # Roll moment per aileron (1/rad) - HIGH for fast roll
 
-    # Stability derivatives - lateral-directional
-    cn_beta: float = -0.12  # Weathercock stability (1/rad) - yaw moment due to sideslip
-    cl_beta: float = -0.10  # Dihedral effect (1/rad) - roll moment due to sideslip
+    # === CRITICAL STABILITY DERIVATIVES ===
+    # Longitudinal static stability (pitch)
+    cm_alpha: float = -0.15  # Static margin (1/rad) - mild stability
 
-    # Damping coefficients (stabilizing) - HIGH for maximum stability
-    damping_roll: float = -2.0  # Roll damping
-    damping_pitch: float = -8.0  # Pitch damping
-    damping_yaw: float = -1.5  # Yaw damping
+    # Lateral-directional stability
+    cn_beta: float = 0.04  # Weathercock stability (1/rad) - mild
+    cl_beta: float = -0.02  # Dihedral effect (1/rad) - minimal
+
+    # Damping coefficients - LOW for crisp response
+    damping_roll: float = -0.8  # Roll damping
+    damping_pitch: float = -2.0  # Pitch damping
+    damping_yaw: float = -0.6  # Yaw damping
 
     # Thrust
     max_thrust: float = 50.0  # N (max thrust)
@@ -88,8 +98,9 @@ class AircraftParams:
     max_aileron_deflection: float = 30.0  # degrees
     max_rudder_deflection: float = 30.0  # degrees
 
-    # Propeller thrust model
-    thrust_reference_velocity: float = 15.0  # m/s - reference velocity for thrust decay
+    # Propeller thrust model (linear decay with airspeed)
+    # At V=0: thrust = max_thrust, at V=thrust_zero_velocity: thrust = 0
+    thrust_zero_velocity: float = 50.0  # m/s - airspeed where thrust drops to zero
 
     # State variable safety limits
     max_velocity: float = 100.0  # m/s - maximum body frame velocity
@@ -384,26 +395,28 @@ class Simplified6DOF:
         fz_aero = -drag * np.sin(alpha) - lift * np.cos(alpha)
 
         # === Thrust ===
-        # Propeller thrust model: thrust decreases linearly with airspeed
-        # This matches propeller physics where efficiency drops at high speed
-        V_ref = self.params.thrust_reference_velocity
-        # Linear decay is more aggressive than sqrt, better matches JSBSim behavior
-        thrust_factor = V_ref / max(airspeed, V_ref)
+        # Propeller thrust model: linear decay from static thrust to zero
+        # T = T_max * (1 - V/V_max) for V < V_max, else 0
+        # This matches real propeller behavior where thrust decreases with airspeed
+        V_max = self.params.thrust_zero_velocity
+        thrust_factor = max(0.0, 1.0 - airspeed / V_max)
         thrust = self.params.max_thrust * controls.throttle * thrust_factor
         fx_thrust = thrust
         fy_thrust = 0.0
         fz_thrust = 0.0
 
         # === Gravity (transform to body frame) ===
+        # Gravity acceleration components in body frame (m/s²)
         g = self.params.gravity
-        fx_grav = -g * np.sin(theta)
-        fy_grav = g * np.cos(theta) * np.sin(phi)
-        fz_grav = g * np.cos(theta) * np.cos(phi)
+        ax_grav = -g * np.sin(theta)
+        ay_grav = g * np.cos(theta) * np.sin(phi)
+        az_grav = g * np.cos(theta) * np.cos(phi)
 
-        # Total force (body frame)
-        fx = fx_aero + fx_thrust + fx_grav * self.params.mass
-        fy = fy_aero + fy_thrust + fy_grav * self.params.mass
-        fz = fz_aero + fz_thrust + fz_grav * self.params.mass
+        # Total force (body frame) - F = ma, so F_grav = m * a_grav
+        mass = self.params.mass
+        fx = fx_aero + fx_thrust + ax_grav * mass
+        fy = fy_aero + fy_thrust + ay_grav * mass
+        fz = fz_aero + fz_thrust + az_grav * mass
 
         # === Moments (body frame) ===
 
@@ -415,9 +428,11 @@ class Simplified6DOF:
                     self.params.damping_roll * p * self.params.wing_span / (2 * safe_airspeed) + \
                     self.params.cl_beta * beta)
 
-        # Pitch moment (elevator + damping)
+        # Pitch moment (elevator + damping + static stability)
+        # cm_alpha provides static pitch stability - nose-down moment when alpha increases
         m_moment = q_dyn * self.params.wing_area * self.params.chord * \
                    (self.params.cm_elevator * elevator_rad + \
+                    self.params.cm_alpha * alpha + \
                     self.params.damping_pitch * q * self.params.chord / (2 * safe_airspeed))
 
         # Yaw moment (rudder + damping + weathercock stability)
@@ -450,11 +465,16 @@ class Simplified6DOF:
             (np.sin(phi) * q + np.cos(phi) * r) / cos_theta
         ])
 
-        # Angular acceleration (simplified - assuming diagonal inertia)
+        # Angular acceleration (Euler's equations with gyroscopic coupling)
+        # Full equations: ṗ = (L - (Izz-Iyy)qr) / Ixx, etc.
+        Ixx = self.params.inertia_xx
+        Iyy = self.params.inertia_yy
+        Izz = self.params.inertia_zz
+
         rate_dot = np.array([
-            l_moment / self.params.inertia_xx,
-            m_moment / self.params.inertia_yy,
-            n_moment / self.params.inertia_zz
+            (l_moment - (Izz - Iyy) * q * r) / Ixx,
+            (m_moment - (Ixx - Izz) * p * r) / Iyy,
+            (n_moment - (Iyy - Ixx) * p * q) / Izz
         ])
 
         # Clamp angular accelerations to prevent numerical explosion

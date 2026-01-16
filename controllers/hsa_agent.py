@@ -1,7 +1,6 @@
 """Level 2: HSA Control Agent - Heading, Speed, Altitude control."""
 
 import numpy as np
-import logging
 from controllers.base_agent import BaseAgent
 from controllers.attitude_agent import AttitudeAgent
 from controllers.utils import wrap_angle, validate_command
@@ -12,8 +11,6 @@ from controllers.types import (
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
-
-logger = logging.getLogger(__name__)
 
 
 class HSAAgent(BaseAgent):
@@ -82,14 +79,16 @@ class HSAAgent(BaseAgent):
         # Energy distribution PID (controls pitch to exchange kinetic ↔ potential energy)
         balance_config = acb.PIDConfig()
         balance_config.gains = acb.PIDGains(
-            kp=0.10,   # Energy balance error → pitch (TUNED: 0.02→0.10, 5x for aggressive speed→altitude trading)
-            ki=0.002,  # Weak integral
-            kd=0.05    # Damping (TUNED: 0.02→0.05, 2.5x for better damping)
+            kp=0.03,   # Energy balance error → pitch (reduced for stability during turns)
+            ki=0.001,  # Weak integral
+            kd=0.02    # Damping
         )
-        balance_config.integral_min = -10.0
-        balance_config.integral_max = 10.0
-        balance_config.output_min = -max_bank_rad
-        balance_config.output_max = max_bank_rad
+        balance_config.integral_min = -5.0
+        balance_config.integral_max = 5.0
+        # Limit pitch command to 10° to prevent excessive pitch during turns
+        max_pitch_rad = np.radians(10.0)
+        balance_config.output_min = -max_pitch_rad
+        balance_config.output_max = max_pitch_rad
         self.balance_pid = acb.PIDController(balance_config)
 
         # Inner loop: Attitude controller (Level 3)
@@ -142,8 +141,7 @@ class HSAAgent(BaseAgent):
         heading_error = wrap_angle(command.heading - state.heading)
 
         # Heading PID → roll angle (coordinated turn)
-        # For small bank angles: roll ≈ (V²/g) * yaw_rate
-        # Simplified: use heading error to command roll
+        # Small bank angles only for stability in simplified 6DOF model
         roll_angle = self.heading_pid.compute(command.heading, state.heading, dt)
 
         # Limit roll angle using configured max bank
@@ -205,14 +203,12 @@ class HSAAgent(BaseAgent):
             load_factor = 1.0 / cos_roll
             pitch_angle += 0.05 * (load_factor - 1.0)  # Gentle compensation
 
-        # Limit pitch angle using configured max bank (symmetrical limit)
-        pitch_angle = np.clip(pitch_angle, -self.max_bank_rad, self.max_bank_rad)
+        # Limit pitch angle to prevent excessive pitch during turns
+        max_pitch_cmd = np.radians(10.0)
+        pitch_angle = np.clip(pitch_angle, -max_pitch_cmd, max_pitch_cmd)
 
-        # === Yaw Coordination ===
-        # Command yaw to track current yaw (effectively disables active yaw control)
-        # This allows yaw to naturally follow aircraft dynamics during turns
-        # Heading control comes entirely from ROLL (banking), not yaw
-        # The aircraft naturally coordinates itself through aerodynamics
+        # === Turn Coordination ===
+        # Track current yaw - let bank handle the turn
         yaw_angle = state.yaw
 
         # Create attitude command (Level 3)

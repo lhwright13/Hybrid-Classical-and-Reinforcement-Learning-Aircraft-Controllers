@@ -369,7 +369,7 @@ class BaseSimulationWorker(ABC):
             'roll': np.degrees(state.roll),
             'pitch': np.degrees(state.pitch),
             'yaw': np.degrees(state.yaw),
-            'heading': np.degrees(state.yaw) % 360,
+            'heading': np.degrees(state.heading) % 360,
             # Rates (degrees/s)
             'roll_rate': np.degrees(state.p),
             'pitch_rate': np.degrees(state.q),
@@ -379,8 +379,9 @@ class BaseSimulationWorker(ABC):
             'aileron': surfaces.aileron,
             'rudder': surfaces.rudder,
             'throttle': surfaces.throttle,
-            # Derived
-            'g_force': 1.0 + state.velocity[2] / 9.81,
+            # Derived - approximate load factor from pitch and bank
+            # True g-force would need acceleration data; this is a simple approximation
+            'g_force': 1.0 / max(0.1, np.cos(state.roll) * np.cos(state.pitch)),
             # Control mode
             'mode': self.current_command.mode.name,
         }

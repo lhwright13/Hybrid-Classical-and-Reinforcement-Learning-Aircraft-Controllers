@@ -42,11 +42,11 @@ class WaypointAgent(BaseAgent):
         # Inner loop: HSA controller (Level 2)
         self.hsa_agent = HSAAgent(config)
 
-        # Waypoint acceptance radius (meters)
-        self.acceptance_radius = 10.0
+        # Waypoint acceptance radius (meters) - from config
+        self.acceptance_radius = config.waypoint_acceptance_radius
 
-        # Proportional navigation constant (for PN guidance)
-        self.N = 3.0  # Typical range 3-5
+        # Proportional navigation constant (for PN guidance) - from config
+        self.N = config.proportional_navigation_gain
 
         # Heading command smoothing (disabled for waypoint navigation)
         self.last_heading_cmd = None

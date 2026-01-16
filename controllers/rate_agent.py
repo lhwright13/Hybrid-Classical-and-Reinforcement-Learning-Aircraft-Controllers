@@ -1,7 +1,6 @@
 """Level 4: Rate Control Agent - Inner loop rate control."""
 
 import numpy as np
-import logging
 from controllers.base_agent import BaseAgent
 from controllers.types import (
     ControlMode, ControlCommand, AircraftState,
@@ -11,8 +10,6 @@ from controllers.types import (
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
 from controllers.utils import create_pid_config, validate_command
-
-logger = logging.getLogger(__name__)
 
 
 class RateAgent(BaseAgent):
@@ -108,11 +105,13 @@ class RateAgent(BaseAgent):
 
         # Map PID output to surfaces
         # Output: roll → aileron, pitch → elevator, yaw → rudder
-        # Note: Elevator sign is inverted because positive elevator = nose down in aero convention
+        # Note: Elevator and rudder signs are inverted due to aero conventions:
+        # - Positive elevator → nose down (negative pitch moment)
+        # - Positive rudder → nose left (negative yaw moment)
         surfaces = ControlSurfaces(
             aileron=output.roll,     # p (roll rate) → aileron
             elevator=-output.pitch,  # q (pitch rate) → elevator (INVERTED)
-            rudder=output.yaw,       # r (yaw rate) → rudder
+            rudder=-output.yaw,      # r (yaw rate) → rudder (INVERTED)
             throttle=command.throttle  # Pass through
         )
 

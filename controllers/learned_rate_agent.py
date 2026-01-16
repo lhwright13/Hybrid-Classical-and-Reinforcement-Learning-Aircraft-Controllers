@@ -2,7 +2,6 @@
 
 import logging
 import numpy as np
-import torch
 from pathlib import Path
 from typing import Optional
 

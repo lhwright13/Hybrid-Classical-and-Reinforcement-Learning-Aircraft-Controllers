@@ -39,7 +39,6 @@ from controllers import (
     ControlMode,
     AircraftState,
     ControllerConfig,
-    PIDGains
 )
 
 # Try importing RL agent
@@ -52,20 +51,14 @@ except ImportError:
 
 
 def create_config():
-    """Create controller configuration."""
+    """Create controller configuration.
+
+    Uses default gains from ControllerConfig which are tuned for the
+    stable aircraft model.
+    """
     config = ControllerConfig()
-
-    # Rate control PID gains (Level 4)
-    config.roll_rate_gains = PIDGains(kp=0.25, ki=0.20, kd=0.0002, i_limit=25.0)
-    config.pitch_rate_gains = PIDGains(kp=0.25, ki=0.20, kd=0.0002, i_limit=25.0)
-    config.yaw_gains = PIDGains(kp=0.20, ki=0.05, kd=0.00015, i_limit=25.0)
-
-    config.max_roll_rate = 90.0
-    config.max_pitch_rate = 90.0
-    config.max_yaw_rate = 60.0
-
-    config.dt = 0.01
-
+    # Use default tuned PID gains from types.py
+    # No need to override - they're already tuned for the stable aircraft model
     return config
 
 
