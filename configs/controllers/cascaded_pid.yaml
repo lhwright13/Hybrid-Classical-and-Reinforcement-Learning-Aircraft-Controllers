@@ -1,0 +1,105 @@
+# Cascaded PID Controller Configuration
+# 5-level hierarchy: Waypoint -> HSA -> Attitude -> Rate -> Surface
+
+# Control loop timing
+timing:
+  outer_loop_dt: 0.01          # 100 Hz (attitude, HSA, waypoint)
+  inner_loop_dt: 0.001         # 1000 Hz (rate control)
+
+# =============================================================================
+# Level 4: Rate Control (innermost PID loops)
+# =============================================================================
+rate_control:
+  roll:
+    kp: 1.3
+    ki: 0.4
+    kd: 0.012
+  pitch:
+    kp: 0.6
+    ki: 0.2
+    kd: 0.008
+  yaw:
+    kp: 1.6
+    ki: 0.15
+    kd: 0.01
+
+  limits:
+    max_roll_rate: 200.0       # deg/s
+    max_pitch_rate: 100.0      # deg/s
+    max_yaw_rate: 60.0         # deg/s
+
+# =============================================================================
+# Level 3: Attitude Control (angle mode)
+# =============================================================================
+attitude_control:
+  roll:
+    kp: 8.0
+    ki: 2.0
+    kd: 0.3
+  pitch:
+    kp: 6.0
+    ki: 1.5
+    kd: 0.2
+
+  limits:
+    max_roll: 30.0             # deg
+    max_pitch: 20.0            # deg
+
+# =============================================================================
+# Level 2: HSA Control (Heading/Speed/Altitude)
+# =============================================================================
+hsa_control:
+  heading:
+    kp: 1.0
+    ki: 0.05
+    kd: 0.2
+
+  # TECS (Total Energy Control System)
+  tecs:
+    energy:                    # Controls throttle
+      kp: 0.12
+      ki: 0.03
+      kd: 0.03
+    balance:                   # Controls pitch for energy distribution
+      kp: 0.06
+      ki: 0.005
+      kd: 0.03
+
+  limits:
+    max_bank_angle: 25.0       # deg (limited by TECS altitude hold)
+    max_pitch_command: 15.0    # deg
+    baseline_throttle: 0.1     # 0-1
+
+  # Turn compensation
+  turn_compensation:
+    load_factor_gain: 0.05     # Pitch adjustment per load factor
+
+# =============================================================================
+# Level 1: Waypoint Navigation
+# =============================================================================
+waypoint_navigation:
+  # Acceptance criteria
+  acceptance_radius: 40.0      # meters
+
+  # Pure Pursuit guidance
+  pure_pursuit:
+    lookahead_time: 1.2        # seconds
+    lookahead_min: 12.0        # meters
+    lookahead_max: 30.0        # meters
+    proximity_scale_distance: 2.0  # multiplier of turn radius
+
+  # LOS guidance
+  los:
+    max_bank_for_turn_calc: 20.0  # deg
+    lead_angle: 30.0           # deg
+
+  # Speed management
+  speed_control:
+    turn_threshold_angle: 60.0 # deg - start slowing for turns > this
+    turn_threshold_distance: 60.0  # meters - start slowing within this distance
+    max_speed_reduction: 0.15  # fraction (15% max reduction)
+    min_speed: 14.0            # m/s - never go below this
+
+  # Proportional navigation (for PN guidance mode)
+  proportional_nav:
+    gain: 3.0                  # Navigation constant N

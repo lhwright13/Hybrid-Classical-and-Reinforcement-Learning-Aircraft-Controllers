@@ -1,0 +1,66 @@
+# RC Trainer Aircraft Configuration
+# Small 8kg fixed-wing trainer (e.g., Bixler, EasyStar)
+
+aircraft:
+  name: "RC Trainer"
+  description: "Small fixed-wing RC trainer aircraft"
+
+  # Mass properties
+  mass: 8.0                    # kg
+  inertia:
+    xx: 0.4                    # kg*m^2 (roll)
+    yy: 0.6                    # kg*m^2 (pitch)
+    zz: 0.7                    # kg*m^2 (yaw)
+
+  # Wing geometry
+  wing:
+    area: 0.5                  # m^2
+    span: 2.0                  # m
+    chord: 0.25                # m (mean aerodynamic chord)
+
+  # Aerodynamic coefficients
+  aero:
+    cl_0: 0.4                  # Zero-alpha lift coefficient
+    cl_alpha: 5.0              # Lift curve slope (1/rad)
+    cd_0: 0.025                # Parasitic drag coefficient
+    cd_alpha2: 0.04            # Induced drag coefficient
+
+    # Stability derivatives
+    cm_alpha: -0.15            # Pitch stability (1/rad)
+    cn_beta: 0.04              # Weathercock stability (1/rad)
+    cl_beta: -0.02             # Dihedral effect (1/rad)
+
+    # Damping
+    damping_roll: -0.8
+    damping_pitch: -2.0
+    damping_yaw: -0.6
+
+  # Control effectiveness
+  controls:
+    cl_elevator: 0.6           # Lift change per elevator (1/rad)
+    cm_elevator: -2.0          # Pitch moment per elevator (1/rad)
+    cy_rudder: 0.5             # Side force per rudder (1/rad)
+    cn_rudder: -0.40           # Yaw moment per rudder (1/rad)
+    cl_aileron: 0.50           # Roll moment per aileron (1/rad)
+
+    # Deflection limits (degrees)
+    max_elevator: 30.0
+    max_aileron: 30.0
+    max_rudder: 30.0
+
+  # Propulsion
+  propulsion:
+    max_thrust: 50.0           # N
+    thrust_zero_velocity: 50.0 # m/s (velocity where thrust drops to zero)
+
+  # Flight envelope
+  limits:
+    min_airspeed: 10.0         # m/s (for aero calculations)
+    max_airspeed: 100.0        # m/s
+    max_angular_rate: 360.0    # deg/s
+    max_pitch_angle: 85.0      # deg (gimbal lock avoidance)
+    max_alpha: 30.0            # deg (angle of attack)
+
+environment:
+  air_density: 1.225           # kg/m^3 (sea level)
+  gravity: 9.81                # m/s^2

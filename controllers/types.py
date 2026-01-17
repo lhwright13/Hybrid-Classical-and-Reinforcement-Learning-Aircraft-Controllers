@@ -342,9 +342,9 @@ class ControllerConfig:
     rate_loop_dt: float = 0.001  # 1000 Hz for inner rate loop (tight control)
 
     # HSA controller parameters
-    max_bank_angle_hsa: float = 12.0  # degrees - max bank for turns (limited due to 6DOF stability)
-    baseline_throttle: float = 0.2  # 0-1 - baseline throttle for speed control
+    max_bank_angle_hsa: float = 25.0  # degrees - limited by TECS altitude hold capability
+    baseline_throttle: float = 0.1  # 0-1 - baseline throttle for speed control
 
     # Waypoint navigation parameters
-    waypoint_acceptance_radius: float = 10.0  # meters - default waypoint capture radius
+    waypoint_acceptance_radius: float = 40.0  # meters - balanced for turn radius
     proportional_navigation_gain: float = 3.0  # N - proportional navigation gain

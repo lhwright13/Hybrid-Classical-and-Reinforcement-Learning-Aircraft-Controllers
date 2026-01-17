@@ -7,6 +7,7 @@ from controllers.types import (
     ControlMode, ControlCommand, AircraftState,
     ControlSurfaces, ControllerConfig, Waypoint
 )
+from controllers.config_loader import FlightControlConfig, GuidanceConfig
 
 
 class WaypointAgent(BaseAgent):
@@ -29,24 +30,38 @@ class WaypointAgent(BaseAgent):
     - Obstacle avoidance (high-level)
     """
 
-    def __init__(self, config: ControllerConfig, guidance_type: str = 'LOS'):
+    def __init__(
+        self,
+        config: ControllerConfig,
+        guidance_type: str = 'LOS',
+        flight_config: FlightControlConfig = None
+    ):
         """Initialize waypoint agent.
 
         Args:
-            config: Controller configuration
-            guidance_type: Guidance algorithm ('LOS' or 'PN')
+            config: Controller configuration (legacy)
+            guidance_type: Guidance algorithm ('LOS', 'PP', or 'PN')
+            flight_config: Flight control configuration with guidance params
         """
         self.config = config
         self.guidance_type = guidance_type
 
+        # Use flight_config if provided, otherwise use defaults
+        if flight_config is not None:
+            self.guidance = flight_config.guidance
+            self.max_bank_angle = flight_config.hsa.max_bank_angle
+        else:
+            self.guidance = GuidanceConfig()
+            self.max_bank_angle = 25.0
+
         # Inner loop: HSA controller (Level 2)
-        self.hsa_agent = HSAAgent(config)
+        self.hsa_agent = HSAAgent(config, flight_config)
 
-        # Waypoint acceptance radius (meters) - from config
-        self.acceptance_radius = config.waypoint_acceptance_radius
+        # Waypoint acceptance radius (meters) - from guidance config
+        self.acceptance_radius = self.guidance.acceptance_radius
 
-        # Proportional navigation constant (for PN guidance) - from config
-        self.N = config.proportional_navigation_gain
+        # Proportional navigation constant (for PN guidance) - from guidance config
+        self.N = self.guidance.pn_gain
 
         # Heading command smoothing (disabled for waypoint navigation)
         self.last_heading_cmd = None
@@ -108,10 +123,9 @@ class WaypointAgent(BaseAgent):
             heading_cmd = np.arctan2(error[1], error[0])  # arctan2(east, north)
 
             # Turn anticipation: Start banking early to reduce overshoot
-            # Estimate turn radius at current speed and max bank (20°)
             V = max(state.airspeed, 10.0)  # Use at least 10 m/s for calculation
-            max_bank = np.radians(20)
-            turn_radius = V**2 / (9.81 * np.tan(max_bank))  # R = V²/(g·tan(φ))
+            max_bank = np.radians(self.guidance.los_max_bank)
+            turn_radius = V**2 / (9.81 * np.tan(max_bank))  # R = V^2/(g*tan(phi))
 
             # Compute heading change required
             heading_error = heading_cmd - state.heading
@@ -120,43 +134,49 @@ class WaypointAgent(BaseAgent):
             # If we're close to waypoint and need to turn, start turning early
             # Turn anticipation distance = turn_radius (conservative)
             anticipation_dist = turn_radius * abs(heading_error) / np.radians(90)  # Scale with turn angle
+            lead_angle_rad = np.radians(self.guidance.los_lead_angle)
 
             if horizontal_distance < anticipation_dist and abs(heading_error) > np.radians(20):
                 # We're in turn anticipation zone - start banking NOW
                 # Add a "lead point" ahead of the waypoint in the turn direction
-                lead_angle = heading_cmd + np.sign(heading_error) * np.radians(30)
                 # Blend between direct LOS and lead angle based on distance
                 blend = 1.0 - (horizontal_distance / anticipation_dist)
-                heading_cmd = heading_cmd + blend * np.radians(30) * np.sign(heading_error)
+                heading_cmd = heading_cmd + blend * lead_angle_rad * np.sign(heading_error)
                 heading_cmd = np.arctan2(np.sin(heading_cmd), np.cos(heading_cmd))  # Wrap
 
         elif self.guidance_type == 'PP' or self.guidance_type == 'PURE_PURSUIT':
-            # Pure Pursuit guidance: look ahead along path to waypoint
-            # This prevents spiral divergence by accounting for turn radius
+            # Pure Pursuit guidance
+            V = max(state.airspeed, 10.0)
 
-            # Lookahead distance: proportional to airspeed
-            # L = k * V, where k is lookahead time (2.5 seconds balanced)
-            # Must be >= turn radius to prevent overshoot oscillations
-            lookahead_time = 2.5  # seconds
-            lookahead_dist = lookahead_time * max(state.airspeed, 10.0)
-            # Cap max lookahead to prevent excessive look-ahead during speed spikes
-            lookahead_dist = min(lookahead_dist, 150.0)
+            # Calculate achievable turn radius at max bank
+            max_bank = np.radians(self.max_bank_angle)
+            turn_radius = V**2 / (9.81 * np.tan(max_bank))
 
-            if horizontal_distance <= lookahead_dist:
-                # Close to waypoint: point directly at it
-                heading_cmd = np.arctan2(error[1], error[0])
-            else:
-                # Far from waypoint: find "carrot" point along path
-                # Carrot is lookahead_dist away from current position toward waypoint
+            # Lookahead distance from config
+            lookahead_dist = self.guidance.lookahead_time * V
 
-                # Unit vector toward waypoint (horizontal only)
+            # Reduce lookahead near waypoint for tighter corner entry
+            proximity_dist = self.guidance.proximity_scale_distance * turn_radius
+            if horizontal_distance < proximity_dist:
+                scale = 0.6 + 0.4 * (horizontal_distance / proximity_dist)
+                lookahead_dist *= scale
+
+            # Clamp lookahead to configured bounds
+            lookahead_dist = np.clip(
+                lookahead_dist,
+                self.guidance.lookahead_min,
+                self.guidance.lookahead_max
+            )
+
+            if horizontal_distance > 1.0:  # Avoid division by zero
+                # Always use carrot-based pursuit for smooth tracking
                 direction = error[:2] / horizontal_distance
-
-                # Carrot position (NED frame, relative to current position)
-                carrot = direction * lookahead_dist
-
-                # Heading to carrot
+                effective_lookahead = min(lookahead_dist, horizontal_distance)
+                carrot = direction * effective_lookahead
                 heading_cmd = np.arctan2(carrot[1], carrot[0])
+            else:
+                # Very close - point directly at waypoint
+                heading_cmd = np.arctan2(error[1], error[0])
 
         else:
             # Default to LOS
@@ -193,6 +213,20 @@ class WaypointAgent(BaseAgent):
             speed_cmd = waypoint.speed
         else:
             speed_cmd = state.airspeed
+
+        # Speed reduction near waypoints for sharper turns
+        heading_to_wp = np.arctan2(error[1], error[0])
+        heading_error = abs(heading_to_wp - state.heading)
+        heading_error = abs(np.arctan2(np.sin(heading_error), np.cos(heading_error)))
+
+        threshold_dist = self.guidance.turn_threshold_distance
+        threshold_angle = np.radians(self.guidance.turn_threshold_angle)
+
+        if horizontal_distance < threshold_dist and heading_error > threshold_angle:
+            # Reduce speed for sharp turns
+            reduction = self.guidance.max_speed_reduction * (1.0 - horizontal_distance / threshold_dist)
+            speed_cmd = speed_cmd * (1.0 - reduction)
+            speed_cmd = max(speed_cmd, self.guidance.min_speed)
 
         # === Create HSA Command (Level 2) ===
         hsa_cmd = ControlCommand(

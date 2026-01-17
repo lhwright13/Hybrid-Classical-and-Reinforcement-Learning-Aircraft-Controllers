@@ -1,0 +1,48 @@
+# Square Pattern Mission Configuration
+# Counter-clockwise square for waypoint navigation demo
+
+mission:
+  name: "Square Pattern"
+  description: "300m counter-clockwise square at 100m altitude"
+
+  # Mission parameters
+  pattern:
+    type: "square"
+    size: 300.0                # meters per side
+    direction: "ccw"           # counter-clockwise
+
+  # Flight parameters
+  flight:
+    altitude: 100.0            # meters
+    speed: 15.0                # m/s (cruise speed)
+    guidance: "PP"             # Pure Pursuit (or "LOS" for line-of-sight)
+
+  # Waypoints (auto-generated from pattern, or can be explicit)
+  # Format: [north, east, altitude, speed]
+  # waypoints:
+  #   - [0, 0, 100, 15]        # Start/End
+  #   - [300, 0, 100, 15]      # North
+  #   - [300, 300, 100, 15]    # Northeast
+  #   - [0, 300, 100, 15]      # East
+  #   - [0, 0, 100, 15]        # Back to start
+
+  # Initial state
+  initial:
+    position: [0, 0, -100]     # NED (north, east, down)
+    velocity: [15, 0, 0]       # Body frame (forward, right, down)
+    attitude: [0, 0, 0]        # Euler angles (roll, pitch, yaw) in radians
+
+# Simulation parameters
+simulation:
+  max_duration: 180.0          # seconds
+  dt: 0.01                     # timestep (100 Hz)
+
+# Output configuration
+output:
+  directory: "final_figures"
+  plots:
+    - "trajectory_2d"
+    - "altitude_profile"
+    - "heading_tracking"
+    - "mission_summary"
+  save_telemetry: false

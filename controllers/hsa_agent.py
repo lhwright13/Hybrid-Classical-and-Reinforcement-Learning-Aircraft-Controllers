@@ -8,6 +8,7 @@ from controllers.types import (
     ControlMode, ControlCommand, AircraftState,
     ControlSurfaces, ControllerConfig
 )
+from controllers.config_loader import FlightControlConfig, TECSConfig, HSAConfig
 
 # Import C++ PID controller
 import aircraft_controls_bindings as acb
@@ -34,13 +35,22 @@ class HSAAgent(BaseAgent):
     - Traffic avoidance (altitude separation)
     """
 
-    def __init__(self, config: ControllerConfig):
+    def __init__(self, config: ControllerConfig, flight_config: FlightControlConfig = None):
         """Initialize HSA agent with PID controllers.
 
         Args:
-            config: Controller configuration
+            config: Controller configuration (legacy)
+            flight_config: Flight control configuration with TECS params
         """
         self.config = config
+
+        # Use flight_config if provided, otherwise use defaults
+        if flight_config is not None:
+            hsa_cfg = flight_config.hsa
+            tecs_cfg = hsa_cfg.tecs
+        else:
+            hsa_cfg = HSAConfig()
+            tecs_cfg = TECSConfig()
 
         # Last commanded yaw for rate limiting
         self.last_yaw_cmd = None
@@ -49,26 +59,25 @@ class HSAAgent(BaseAgent):
         # Heading controller
         heading_config = acb.PIDConfig()
         heading_config.gains = acb.PIDGains(
-            kp=config.heading_gains.kp,
-            ki=config.heading_gains.ki,
-            kd=config.heading_gains.kd
+            kp=hsa_cfg.heading_gains.kp,
+            ki=hsa_cfg.heading_gains.ki,
+            kd=hsa_cfg.heading_gains.kd
         )
         heading_config.integral_min = -config.heading_gains.i_limit
         heading_config.integral_max = config.heading_gains.i_limit
         # Use configured max bank angle for coordinated turns
-        max_bank_rad = np.radians(config.max_bank_angle_hsa)
+        max_bank_rad = np.radians(hsa_cfg.max_bank_angle)
         heading_config.output_min = -max_bank_rad
         heading_config.output_max = max_bank_rad
         self.heading_pid = acb.PIDController(heading_config)
 
         # === TECS (Total Energy Control System) ===
-        # Instead of separate altitude and speed PIDs, use energy-based control
         # Total energy PID (controls throttle to add/remove energy)
         energy_config = acb.PIDConfig()
         energy_config.gains = acb.PIDGains(
-            kp=0.08,   # Total energy error → throttle (TUNED: 0.05→0.08, moderate increase)
-            ki=0.02,   # Integral for steady-state (TUNED: 0.01→0.02, moderate increase)
-            kd=0.02    # Derivative for damping (added for speed spike control)
+            kp=tecs_cfg.energy_gains.kp,
+            ki=tecs_cfg.energy_gains.ki,
+            kd=tecs_cfg.energy_gains.kd
         )
         energy_config.integral_min = -10.0
         energy_config.integral_max = 10.0
@@ -76,17 +85,17 @@ class HSAAgent(BaseAgent):
         energy_config.output_max = 0.5
         self.energy_pid = acb.PIDController(energy_config)
 
-        # Energy distribution PID (controls pitch to exchange kinetic ↔ potential energy)
+        # Energy distribution PID (controls pitch to exchange kinetic and potential energy)
         balance_config = acb.PIDConfig()
         balance_config.gains = acb.PIDGains(
-            kp=0.03,   # Energy balance error → pitch (reduced for stability during turns)
-            ki=0.001,  # Weak integral
-            kd=0.02    # Damping
+            kp=tecs_cfg.balance_gains.kp,
+            ki=tecs_cfg.balance_gains.ki,
+            kd=tecs_cfg.balance_gains.kd
         )
         balance_config.integral_min = -5.0
         balance_config.integral_max = 5.0
-        # Limit pitch command to 10° to prevent excessive pitch during turns
-        max_pitch_rad = np.radians(10.0)
+        # Limit pitch command from config
+        max_pitch_rad = np.radians(tecs_cfg.max_pitch_command)
         balance_config.output_min = -max_pitch_rad
         balance_config.output_max = max_pitch_rad
         self.balance_pid = acb.PIDController(balance_config)
@@ -96,7 +105,9 @@ class HSAAgent(BaseAgent):
 
         # Store config values for use in compute_action
         self.max_bank_rad = max_bank_rad
-        self.baseline_throttle = config.baseline_throttle
+        self.baseline_throttle = tecs_cfg.baseline_throttle
+        self.load_factor_gain = tecs_cfg.load_factor_gain
+        self.max_pitch_command = tecs_cfg.max_pitch_command
 
     def get_control_level(self) -> ControlMode:
         """Return control level.
@@ -137,12 +148,14 @@ class HSAAgent(BaseAgent):
         validate_command(command, "HSA", ["heading", "altitude", "speed"])
 
         # === Heading Control ===
-        # Compute heading error (wrap to [-π, π])
+        # Compute heading error (wrap to [-pi, pi])
         heading_error = wrap_angle(command.heading - state.heading)
 
-        # Heading PID → roll angle (coordinated turn)
-        # Small bank angles only for stability in simplified 6DOF model
-        roll_angle = self.heading_pid.compute(command.heading, state.heading, dt)
+        # Heading PID -> roll angle (coordinated turn)
+        # Use wrapped error by computing virtual setpoint = state + wrapped_error
+        # This ensures the PID sees the correct (wrapped) error magnitude
+        virtual_setpoint = state.heading + heading_error
+        roll_angle = self.heading_pid.compute(virtual_setpoint, state.heading, dt)
 
         # Limit roll angle using configured max bank
         roll_angle = np.clip(roll_angle, -self.max_bank_rad, self.max_bank_rad)
@@ -179,16 +192,8 @@ class HSAAgent(BaseAgent):
         throttle_adjustment = self.energy_pid.compute(E_specific_cmd, E_specific, dt)
         throttle = self.baseline_throttle + throttle_adjustment
 
-        # Turn compensation for throttle
-        # During turns, reduce throttle to prevent speed buildup
-        # Speed increases during turns due to reduced induced drag in coordinated flight
-        # Reduce throttle proportionally to bank angle
-        roll_angle_deg = np.abs(np.degrees(roll_angle))
-        if roll_angle_deg > 1.0:  # Only apply during meaningful turns
-            # Reduce throttle by 3.0% per degree of bank (30% reduction at 10° bank)
-            # Balance between speed control and altitude stability
-            throttle -= 0.030 * roll_angle_deg
-
+        # Note: Turn compensation removed - TECS energy controller handles speed management
+        # Previous turn compensation caused altitude loss during turns
         throttle = np.clip(throttle, 0.0, 1.0)
 
         # === Energy Distribution Control → Pitch ===
@@ -201,9 +206,10 @@ class HSAAgent(BaseAgent):
         cos_roll = np.cos(roll_angle)
         if abs(cos_roll) > 0.01:
             load_factor = 1.0 / cos_roll
-            pitch_angle += 0.05 * (load_factor - 1.0)  # Gentle compensation
+            pitch_angle += self.load_factor_gain * (load_factor - 1.0)
 
         # Limit pitch angle to prevent excessive pitch during turns
+        # Use tighter limit (10 deg) than TECS output (15 deg) for stability
         max_pitch_cmd = np.radians(10.0)
         pitch_angle = np.clip(pitch_angle, -max_pitch_cmd, max_pitch_cmd)
 
