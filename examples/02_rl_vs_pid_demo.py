@@ -13,7 +13,7 @@ Demonstrates:
 Expected output:
 - 4 comparison plots showing RL vs PID performance
 - Quantitative metrics table
-- Saved figure: outputs/rl_vs_pid_comparison.png
+- Saved figure: final_figures/rl_vs_pid_comparison.png
 
 Usage:
     python examples/02_rl_vs_pid_demo.py
@@ -450,7 +450,7 @@ def main():
     print_summary(results)
 
     # Generate plots
-    output_dir = Path(__file__).parent.parent / 'outputs'
+    output_dir = Path(__file__).parent.parent / 'final_figures'
     plot_comparison(results, output_dir)
 
     # Show conclusions

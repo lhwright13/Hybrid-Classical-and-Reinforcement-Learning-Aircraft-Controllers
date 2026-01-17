@@ -124,7 +124,7 @@ def main():
         print(f"   Aircraft {aircraft_id} at position (N={0:.1f}, E={east_offset:.1f}, Alt=100m)")
 
     # Create telemetry logger
-    log_file = "examples/multi_aircraft_flight.h5"
+    log_file = "logs/multi_aircraft_flight.h5"
     print(f"\n4. Creating telemetry logger ({log_file})...")
     logger = TelemetryLogger(log_file)
     for aircraft_id in aircraft_ids:
@@ -241,12 +241,12 @@ def main():
 
     # Save final plot
     print("\n11. Saving visualization...")
-    output_plot = "examples/multi_aircraft_telemetry.png"
+    output_plot = "final_figures/multi_aircraft_telemetry.png"
     plotter.save(output_plot)
     print(f"   Saved plot to: {output_plot}")
 
     if viz_3d:
-        viz_3d.screenshot("examples/multi_aircraft_3d.png")
+        viz_3d.screenshot("final_figures/multi_aircraft_3d.png")
         viz_3d.close()
 
     # Demonstrate replay
@@ -259,7 +259,7 @@ def main():
     print(f"   Summary: {replay.get_summary()}")
 
     # Export one aircraft to CSV
-    csv_file = f"examples/aircraft_{aircraft_ids[0]}.csv"
+    csv_file = f"logs/aircraft_{aircraft_ids[0]}.csv"
     replay.export_csv(aircraft_ids[0], csv_file)
     print(f"   Exported aircraft {aircraft_ids[0]} to: {csv_file}")
 
@@ -284,7 +284,7 @@ def main():
     print(f"  - Telemetry plot: {output_plot}")
     print(f"  - CSV export: {csv_file}")
     if viz_3d:
-        print(f"  - 3D screenshot: examples/multi_aircraft_3d.png")
+        print(f"  - 3D screenshot: final_figures/multi_aircraft_3d.png")
 
     print(f"\nPhase 4: Visualization & Monitoring system working!")
     print(f"   - Multi-aircraft logging")
