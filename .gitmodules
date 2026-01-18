@@ -1,3 +1,3 @@
 [submodule "tensorboard_flight_plugin"]
 	path = tensorboard_flight_plugin
-	url = ./.git/modules/tensorboard_flight_plugin
+	url = https://github.com/lhwright13/TensorBoard-Flight-Analysis.git
