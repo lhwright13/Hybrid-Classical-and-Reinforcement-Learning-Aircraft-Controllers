@@ -11,8 +11,7 @@ sys.path.insert(0, str(project_root))
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-from matplotlib.animation import FuncAnimation
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 import pickle
 
 from sb3_contrib import RecurrentPPO
@@ -316,8 +315,6 @@ class ReplayVisualizer:
             save_path: Path to save figure
             show: Whether to display the plot
         """
-        n_episodes = len(episodes)
-
         fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 
         # 1. Rate tracking comparison

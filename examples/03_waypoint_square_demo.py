@@ -24,11 +24,10 @@ import matplotlib.pyplot as plt
 from simulation.simplified_6dof import Simplified6DOF, AircraftParams
 from controllers.waypoint_agent import WaypointAgent
 from controllers.mission_planner import MissionPlanner
-from controllers.types import ControllerConfig, ControlCommand, ControlMode, Waypoint, AircraftState
+from controllers.types import ControllerConfig, Waypoint, AircraftState
 from controllers.config_loader import (
     load_controller_config,
     load_mission_config,
-    print_config_summary
 )
 
 
@@ -149,25 +148,24 @@ def run_mission():
     while t < MAX_DURATION:
         state = sim.get_state()
 
-        # Record telemetry first (every step at 100Hz)
+        # Record telemetry every step (DT=0.01 is already 10ms)
         # This ensures the final position is recorded when mission completes
-        if True:  # Record every step (DT=0.01 is already 10ms)
-            current_wp = mission.get_current_waypoint()
-            dist_to_wp = np.sqrt(
-                (state.north - current_wp.north)**2 +
-                (state.east - current_wp.east)**2
-            ) if current_wp else 0
+        current_wp = mission.get_current_waypoint()
+        dist_to_wp = np.sqrt(
+            (state.north - current_wp.north)**2 +
+            (state.east - current_wp.east)**2
+        ) if current_wp else 0
 
-            history['time'].append(t)
-            history['north'].append(state.north)
-            history['east'].append(state.east)
-            history['altitude'].append(state.altitude)
-            history['heading'].append(np.degrees(state.heading))
-            history['airspeed'].append(state.airspeed)
-            history['roll'].append(np.degrees(state.roll))
-            history['pitch'].append(np.degrees(state.pitch))
-            history['waypoint_index'].append(mission.current_waypoint_index)
-            history['distance_to_wp'].append(dist_to_wp)
+        history['time'].append(t)
+        history['north'].append(state.north)
+        history['east'].append(state.east)
+        history['altitude'].append(state.altitude)
+        history['heading'].append(np.degrees(state.heading))
+        history['airspeed'].append(state.airspeed)
+        history['roll'].append(np.degrees(state.roll))
+        history['pitch'].append(np.degrees(state.pitch))
+        history['waypoint_index'].append(mission.current_waypoint_index)
+        history['distance_to_wp'].append(dist_to_wp)
 
         # Update mission state
         mission.update(state)

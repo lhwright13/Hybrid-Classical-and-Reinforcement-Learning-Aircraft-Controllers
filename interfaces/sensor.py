@@ -168,25 +168,25 @@ class NoisySensorInterface(SensorInterface):
         """
         import numpy as np
 
-        self.config = noise_config
-        self.enabled = noise_config.get("enabled", True)
+        self._config = noise_config
+        self._enabled = noise_config.get("enabled", True)
 
         # Noise standard deviations
-        self.gyro_noise = noise_config.get("imu_gyro_stddev", 0.01)
-        self.accel_noise = noise_config.get("imu_accel_stddev", 0.1)
-        self.gps_pos_noise = noise_config.get("gps_position_stddev", 1.0)
-        self.gps_vel_noise = noise_config.get("gps_velocity_stddev", 0.1)
-        self.airspeed_noise = noise_config.get("airspeed_stddev", 0.5)
-        self.altitude_noise = noise_config.get("altitude_stddev", 0.5)
-        self.attitude_noise = noise_config.get("attitude_stddev", 0.01)
+        self._gyro_noise = noise_config.get("imu_gyro_stddev", 0.01)
+        self._accel_noise = noise_config.get("imu_accel_stddev", 0.1)
+        self._gps_pos_noise = noise_config.get("gps_position_stddev", 1.0)
+        self._gps_vel_noise = noise_config.get("gps_velocity_stddev", 0.1)
+        self._airspeed_noise = noise_config.get("airspeed_stddev", 0.5)
+        self._altitude_noise = noise_config.get("altitude_stddev", 0.5)
+        self._attitude_noise = noise_config.get("attitude_stddev", 0.01)
 
         # Bias (slowly varying)
-        self.gyro_bias = np.zeros(3)
-        self.accel_bias = np.zeros(3)
+        self._gyro_bias = np.zeros(3)
+        self._accel_bias = np.zeros(3)
 
         # Random number generator
         seed = noise_config.get("seed", None)
-        self.rng = np.random.default_rng(seed)
+        self._rng = np.random.default_rng(seed)
 
         # Current state
         self._state = None
@@ -199,38 +199,37 @@ class NoisySensorInterface(SensorInterface):
 
     def update(self, true_state: AircraftState) -> None:
         """Apply sensor noise to true state."""
-        import numpy as np
         from dataclasses import replace
 
-        if not self.enabled:
+        if not self._enabled:
             self._state = true_state
             return
 
         # Add noise to each measurement
-        noisy_position = true_state.position + self.rng.normal(
-            0, self.gps_pos_noise, 3
+        noisy_position = true_state.position + self._rng.normal(
+            0, self._gps_pos_noise, 3
         )
-        noisy_velocity = true_state.velocity + self.rng.normal(
-            0, self.gps_vel_noise, 3
+        noisy_velocity = true_state.velocity + self._rng.normal(
+            0, self._gps_vel_noise, 3
         )
-        noisy_attitude = true_state.attitude + self.rng.normal(
-            0, self.attitude_noise, 3
+        noisy_attitude = true_state.attitude + self._rng.normal(
+            0, self._attitude_noise, 3
         )
         noisy_angular_rate = (
             true_state.angular_rate
-            + self.rng.normal(0, self.gyro_noise, 3)
-            + self.gyro_bias
+            + self._rng.normal(0, self._gyro_noise, 3)
+            + self._gyro_bias
         )
-        noisy_airspeed = true_state.airspeed + self.rng.normal(
-            0, self.airspeed_noise
+        noisy_airspeed = true_state.airspeed + self._rng.normal(
+            0, self._airspeed_noise
         )
-        noisy_altitude = true_state.altitude + self.rng.normal(
-            0, self.altitude_noise
+        noisy_altitude = true_state.altitude + self._rng.normal(
+            0, self._altitude_noise
         )
 
         # Update bias (random walk)
-        self.gyro_bias += self.rng.normal(0, 0.0001, 3)
-        self.accel_bias += self.rng.normal(0, 0.001, 3)
+        self._gyro_bias += self._rng.normal(0, 0.0001, 3)
+        self._accel_bias += self._rng.normal(0, 0.001, 3)
 
         # Create noisy state
         self._state = replace(
@@ -247,8 +246,8 @@ class NoisySensorInterface(SensorInterface):
         """Reset biases."""
         import numpy as np
 
-        self.gyro_bias = np.zeros(3)
-        self.accel_bias = np.zeros(3)
+        self._gyro_bias = np.zeros(3)
+        self._accel_bias = np.zeros(3)
         self._state = None
 
     def get_sensor_type(self) -> str:
@@ -258,12 +257,12 @@ class NoisySensorInterface(SensorInterface):
     def get_noise_parameters(self) -> dict:
         """Return noise configuration."""
         return {
-            "enabled": self.enabled,
-            "imu_gyro_stddev": self.gyro_noise,
-            "imu_accel_stddev": self.accel_noise,
-            "gps_position_stddev": self.gps_pos_noise,
-            "gps_velocity_stddev": self.gps_vel_noise,
-            "airspeed_stddev": self.airspeed_noise,
-            "altitude_stddev": self.altitude_noise,
-            "attitude_stddev": self.attitude_noise,
+            "enabled": self._enabled,
+            "imu_gyro_stddev": self._gyro_noise,
+            "imu_accel_stddev": self._accel_noise,
+            "gps_position_stddev": self._gps_pos_noise,
+            "gps_velocity_stddev": self._gps_vel_noise,
+            "airspeed_stddev": self._airspeed_noise,
+            "altitude_stddev": self._altitude_noise,
+            "attitude_stddev": self._attitude_noise,
         }

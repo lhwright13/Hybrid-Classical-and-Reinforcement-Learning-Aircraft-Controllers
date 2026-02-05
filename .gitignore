@@ -108,8 +108,9 @@ videos/
 *.jpg
 *.jpeg
 
-# Keep example media
+# Keep example media and assets
 !docs/images/
+!docs/assets/
 !design_docs/images/
 
 # TensorBoard
@@ -277,6 +278,9 @@ validation/test_rc_plane_model.py
 # Profiling
 *.prof
 *.lprof
+
+# Debug/scratch scripts
+scripts/
 
 # External repositories (use git submodule instead)
 dRehmFlight/

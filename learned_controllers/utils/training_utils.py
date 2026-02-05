@@ -5,7 +5,14 @@ code duplication and provide a single source of truth.
 """
 
 import os
+import yaml
 from typing import Optional
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, CallbackList
@@ -113,19 +120,130 @@ def create_callbacks(config: dict, eval_env, flight_logger=None):
             sys.path.insert(0, str(project_root / "tensorboard_flight_plugin" / "src"))
             from tensorboard_flight.callbacks import FlightLoggerCallback
 
-            # Log every 10 episodes to avoid excessive data
+            # Get logging frequency from config (default: every 50 episodes)
+            flight_config = config.get("flight_logging", {})
+            log_every_n = flight_config.get("log_every_n_episodes", 50)
+
             flight_callback = FlightLoggerCallback(
                 logger=flight_logger,
-                log_every_n_episodes=10,
+                log_every_n_episodes=log_every_n,
                 agent_id="ppo_rate_controller",
                 verbose=1,
             )
             callbacks.append(flight_callback)
-            print("✓ Flight trajectory logging ENABLED")
-            print(f"  Logging to: {flight_logger.log_dir}")
-            print(f"  View with: tensorboard --logdir {flight_logger.log_dir}")
+            print("Flight trajectory logging ENABLED")
+            print(f"  Logging every {log_every_n} episodes")
+            print(f"  Log dir: {flight_logger.log_dir}")
         except ImportError as e:
             print(f"Warning: FlightLoggerCallback not available ({e}), skipping flight logging")
 
     # Combine all callbacks
     return CallbackList(callbacks)
+
+
+def load_config(config_path: str) -> dict:
+    """Load training configuration from YAML file.
+
+    Args:
+        config_path: Path to config file
+
+    Returns:
+        Configuration dictionary
+    """
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def behavior_cloning_pretrain(model, observations, actions, epochs=10,
+                              batch_size=256, lr=1e-3):
+    """Pretrain policy network with behavior cloning.
+
+    Args:
+        model: PPO model to pretrain
+        observations: Expert observations array
+        actions: Expert actions array
+        epochs: Number of training epochs
+        batch_size: Batch size
+        lr: Learning rate
+    """
+    print(f"\n{'='*60}")
+    print(f"Behavior Cloning Pretraining ({epochs} epochs)")
+    print(f"{'='*60}")
+
+    policy = model.policy
+
+    obs_tensor = torch.FloatTensor(observations)
+    act_tensor = torch.FloatTensor(actions)
+    dataset = TensorDataset(obs_tensor, act_tensor)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    optimizer = torch.optim.Adam(policy.mlp_extractor.parameters(), lr=lr)
+    optimizer.add_param_group({'params': policy.action_net.parameters()})
+    criterion = nn.MSELoss()
+
+    policy.train()
+    device = next(policy.parameters()).device
+
+    for epoch in range(epochs):
+        total_loss = 0
+        n_batches = 0
+
+        for obs_batch, act_batch in dataloader:
+            obs_batch = obs_batch.to(device)
+            act_batch = act_batch.to(device)
+
+            features = policy.extract_features(obs_batch)
+            latent_pi, _ = policy.mlp_extractor(features)
+            mean_actions = policy.action_net(latent_pi)
+
+            loss = criterion(mean_actions, act_batch)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            n_batches += 1
+
+        avg_loss = total_loss / n_batches
+        print(f"  Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
+
+    policy.eval()
+    print("Behavior cloning complete!\n")
+
+
+def run_final_evaluation(model, difficulty='hard', n_episodes=10, dt=0.02):
+    """Run final evaluation episodes and print results.
+
+    Args:
+        model: Trained model
+        difficulty: Environment difficulty
+        n_episodes: Number of evaluation episodes
+        dt: Control timestep
+    """
+    print(f"\nFinal evaluation ({n_episodes} episodes on {difficulty}):")
+    test_env = RateControlEnv(difficulty=difficulty, episode_length=10.0, dt=dt)
+
+    rewards = []
+    lengths = []
+    for ep in range(n_episodes):
+        obs, _ = test_env.reset(seed=ep * 100)
+        total_reward = 0
+        steps = 0
+
+        while True:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, _ = test_env.step(action)
+            total_reward += reward
+            steps += 1
+            if terminated or truncated:
+                break
+
+        rewards.append(total_reward)
+        lengths.append(steps)
+        print(f"  Episode {ep + 1}: {steps} steps ({steps * dt:.1f}s), reward: {total_reward:.1f}")
+
+    print(f"\nAverage: {np.mean(lengths):.0f} steps ({np.mean(lengths) * dt:.1f}s), reward: {np.mean(rewards):.1f}")
+
+    test_env.close()

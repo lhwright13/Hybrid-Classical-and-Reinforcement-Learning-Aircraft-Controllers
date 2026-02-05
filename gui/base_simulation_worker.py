@@ -18,7 +18,6 @@ from interfaces.sensor import PerfectSensorInterface
 from controllers.types import (
     AircraftState, ControlCommand, ControlSurfaces, ControlMode, ControllerConfig
 )
-from controllers import HSAAgent, AttitudeAgent, RateAgent, SurfaceAgent
 
 # Constants
 COMMAND_QUEUE_SIZE = 10
@@ -69,23 +68,31 @@ class BaseSimulationWorker(ABC):
             config_path: Path to controller config YAML
         """
         # Simulation components
-        self.backend: Optional[SimulationAircraftBackend] = None
-        self.sensor: Optional[PerfectSensorInterface] = None
-        self.agents: Dict[ControlMode, Any] = {}
+        self._backend: Optional[SimulationAircraftBackend] = None
+        self._sensor: Optional[PerfectSensorInterface] = None
+        self._agents: Dict[ControlMode, Any] = {}
 
         # Threading
-        self.thread: Optional[threading.Thread] = None
-        self.running = False
-        self.command_queue: Queue = Queue(maxsize=COMMAND_QUEUE_SIZE)
-        self.state_queue: Queue = Queue(maxsize=STATE_QUEUE_SIZE)
+        self._thread: Optional[threading.Thread] = None
+        self._running = False
+        self._command_queue: Queue = Queue(maxsize=COMMAND_QUEUE_SIZE)
+        self._state_queue: Queue = Queue(maxsize=STATE_QUEUE_SIZE)
 
         # Simulation parameters
-        self.dt = SIMULATION_DT
-        self.current_command = FlightCommand(mode=ControlMode.SURFACE)
+        self._dt = SIMULATION_DT
+        self._current_command = FlightCommand(mode=ControlMode.SURFACE)
 
         # Load controller config
-        self.config_path = config_path
-        self.config = self._load_config(config_path)
+        self._config_path = config_path
+        self._config = self._load_config(config_path)
+        self._resolved_config_path = self._resolve_config_path(config_path)
+
+    @staticmethod
+    def _resolve_config_path(config_path: Optional[str]) -> Path:
+        """Resolve the config path, using default if None."""
+        if config_path is None:
+            return Path(__file__).parent.parent / "controllers" / "config" / "pid_gains.yaml"
+        return Path(config_path)
 
     def _load_config(self, config_path: Optional[str]) -> ControllerConfig:
         """Load controller configuration from pid_gains.yaml.
@@ -96,23 +103,20 @@ class BaseSimulationWorker(ABC):
         Returns:
             Loaded or default ControllerConfig
         """
-        if config_path is None:
-            config_path = Path(__file__).parent.parent / "controllers" / "config" / "pid_gains.yaml"
+        resolved = self._resolve_config_path(config_path)
 
-        config_path = Path(config_path)
-
-        if config_path.exists():
+        if resolved.exists():
             try:
                 from controllers.config import load_config_from_yaml
-                config = load_config_from_yaml(str(config_path))
-                print(f"Loaded PID config from: {config_path}")
+                config = load_config_from_yaml(str(resolved))
+                print(f"Loaded PID config from: {resolved}")
                 return config
             except Exception as e:
-                print(f"Warning: Failed to load config from {config_path}: {e}")
+                print(f"Warning: Failed to load config from {resolved}: {e}")
                 print("Using default configuration from types.py")
                 return ControllerConfig()
         else:
-            print(f"Warning: Config file not found at {config_path}")
+            print(f"Warning: Config file not found at {resolved}")
             print("Using default configuration from types.py")
             return ControllerConfig()
 
@@ -149,38 +153,38 @@ class BaseSimulationWorker(ABC):
 
     def start(self):
         """Start simulation worker thread."""
-        if self.running:
+        if self._running:
             return
 
         # Initialize simulation
-        self.backend = SimulationAircraftBackend({'aircraft_type': 'rc_plane'})
-        self.sensor = PerfectSensorInterface()
+        self._backend = SimulationAircraftBackend({'aircraft_type': 'rc_plane'})
+        self._sensor = PerfectSensorInterface()
 
         # Initialize at stable flight
         initial = self._create_initial_state()
-        self.backend.reset(initial)
-        self.sensor.update(self.backend.get_state())
+        self._backend.reset(initial)
+        self._sensor.update(self._backend.get_state())
 
         # Initialize agents (subclass-specific)
-        self.agents = self._create_agents()
+        self._agents = self._create_agents()
 
         # Start thread
-        self.running = True
-        self.thread = threading.Thread(target=self._simulation_loop, daemon=True)
-        self.thread.start()
+        self._running = True
+        self._thread = threading.Thread(target=self._simulation_loop, daemon=True)
+        self._thread.start()
 
     def stop(self):
         """Stop simulation worker thread."""
-        self.running = False
-        if self.thread:
-            self.thread.join(timeout=1.0)
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=1.0)
 
     def reset(self):
         """Reset aircraft to initial state."""
-        if self.backend:
+        if self._backend:
             initial = self._create_initial_state()
-            self.backend.reset(initial)
-            self.sensor.update(self.backend.get_state())
+            self._backend.reset(initial)
+            self._sensor.update(self._backend.get_state())
             self._on_reset()
 
     def _on_reset(self):
@@ -194,7 +198,7 @@ class BaseSimulationWorker(ABC):
             command: Flight command from GUI
         """
         try:
-            self.command_queue.put_nowait(command)
+            self._command_queue.put_nowait(command)
         except Full:
             pass  # Queue full, drop command
 
@@ -205,7 +209,7 @@ class BaseSimulationWorker(ABC):
             State dictionary or None if no update available
         """
         try:
-            return self.state_queue.get_nowait()
+            return self._state_queue.get_nowait()
         except Empty:
             return None
 
@@ -217,7 +221,7 @@ class BaseSimulationWorker(ABC):
         Returns:
             Rate agent instance
         """
-        return self.agents.get(ControlMode.RATE)
+        return self._agents.get(ControlMode.RATE)
 
     def _pre_simulation_step(self):
         """Hook called before each simulation step.
@@ -230,13 +234,13 @@ class BaseSimulationWorker(ABC):
         """Main simulation loop (runs in background thread)."""
         last_time = time.time()
 
-        while self.running:
+        while self._running:
             current_time = time.time()
             elapsed = current_time - last_time
 
             # Maintain simulation rate
-            if elapsed < self.dt:
-                time.sleep(self.dt - elapsed)
+            if elapsed < self._dt:
+                time.sleep(self._dt - elapsed)
                 continue
 
             last_time = current_time
@@ -247,55 +251,55 @@ class BaseSimulationWorker(ABC):
             # Process commands from queue
             try:
                 while True:
-                    cmd = self.command_queue.get_nowait()
-                    self.current_command = cmd
+                    cmd = self._command_queue.get_nowait()
+                    self._current_command = cmd
             except Empty:
                 pass
 
             # Get current state
-            state = self.sensor.get_state()
-
-            # Update rate agent if in rate mode (for controller switching)
-            if self.current_command.mode == ControlMode.RATE:
-                rate_agent = self._get_rate_agent()
-                if rate_agent:
-                    self.agents[ControlMode.RATE] = rate_agent
+            state = self._sensor.get_state()
 
             # Compute control based on mode
-            command_obj = self._command_to_control_command(self.current_command)
-            agent = self.agents.get(self.current_command.mode)
+            command_obj = self._command_to_control_command(self._current_command)
+            mode = self._current_command.mode
+
+            # Use _get_rate_agent() for RATE mode to support controller switching
+            if mode == ControlMode.RATE:
+                agent = self._get_rate_agent()
+            else:
+                agent = self._agents.get(mode)
 
             if agent:
-                surfaces = agent.compute_action(command_obj, state, dt=self.dt)
+                surfaces = agent.compute_action(command_obj, state, dt=self._dt)
             else:
                 # Fallback: direct surface control
                 surfaces = ControlSurfaces(
-                    elevator=self.current_command.elevator,
-                    aileron=self.current_command.aileron,
-                    rudder=self.current_command.rudder,
-                    throttle=self.current_command.throttle
+                    elevator=self._current_command.elevator,
+                    aileron=self._current_command.aileron,
+                    rudder=self._current_command.rudder,
+                    throttle=self._current_command.throttle
                 )
 
             # Apply control and step simulation
-            self.backend.set_controls(surfaces)
-            true_state = self.backend.step(self.dt)
-            self.sensor.update(true_state)
-            state = self.sensor.get_state()
+            self._backend.set_controls(surfaces)
+            true_state = self._backend.step(self._dt)
+            self._sensor.update(true_state)
+            state = self._sensor.get_state()
 
             # Check for crash (auto-reset)
             if state.altitude < 0:
                 self.reset()
-                state = self.sensor.get_state()
+                state = self._sensor.get_state()
 
             # Send state update to GUI
             state_dict = self._state_to_dict(state, surfaces)
             try:
-                self.state_queue.put_nowait(state_dict)
+                self._state_queue.put_nowait(state_dict)
             except Full:
                 # Queue full, drop oldest
                 try:
-                    self.state_queue.get_nowait()
-                    self.state_queue.put_nowait(state_dict)
+                    self._state_queue.get_nowait()
+                    self._state_queue.put_nowait(state_dict)
                 except (Empty, Full):
                     pass
 
@@ -383,7 +387,7 @@ class BaseSimulationWorker(ABC):
             # True g-force would need acceleration data; this is a simple approximation
             'g_force': 1.0 / max(0.1, np.cos(state.roll) * np.cos(state.pitch)),
             # Control mode
-            'mode': self.current_command.mode.name,
+            'mode': self._current_command.mode.name,
         }
 
         # Add subclass-specific fields
@@ -408,17 +412,17 @@ class BaseSimulationWorker(ABC):
         Args:
             state_dict: State dictionary to modify
         """
-        if self.current_command.mode == ControlMode.ATTITUDE:
-            state_dict['cmd_roll_angle'] = np.degrees(self.current_command.roll_angle)
-            state_dict['cmd_pitch_angle'] = np.degrees(self.current_command.pitch_angle)
-            state_dict['cmd_yaw_angle'] = np.degrees(self.current_command.yaw_angle)
+        if self._current_command.mode == ControlMode.ATTITUDE:
+            state_dict['cmd_roll_angle'] = np.degrees(self._current_command.roll_angle)
+            state_dict['cmd_pitch_angle'] = np.degrees(self._current_command.pitch_angle)
+            state_dict['cmd_yaw_angle'] = np.degrees(self._current_command.yaw_angle)
             state_dict['cmd_roll_rate'] = None
             state_dict['cmd_pitch_rate'] = None
             state_dict['cmd_yaw_rate'] = None
-        elif self.current_command.mode == ControlMode.RATE:
-            state_dict['cmd_roll_rate'] = np.degrees(self.current_command.roll_rate)
-            state_dict['cmd_pitch_rate'] = np.degrees(self.current_command.pitch_rate)
-            state_dict['cmd_yaw_rate'] = np.degrees(self.current_command.yaw_rate)
+        elif self._current_command.mode == ControlMode.RATE:
+            state_dict['cmd_roll_rate'] = np.degrees(self._current_command.roll_rate)
+            state_dict['cmd_pitch_rate'] = np.degrees(self._current_command.pitch_rate)
+            state_dict['cmd_yaw_rate'] = np.degrees(self._current_command.yaw_rate)
             state_dict['cmd_roll_angle'] = None
             state_dict['cmd_pitch_angle'] = None
             state_dict['cmd_yaw_angle'] = None

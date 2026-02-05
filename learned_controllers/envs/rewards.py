@@ -16,12 +16,12 @@ class RateTrackingReward:
 
     def __init__(
         self,
-        w_tracking: float = 1.0,
+        w_tracking: float = 0.5,   # Reduced from 1.0 - less harsh on tracking errors
         w_smoothness: float = 0.01,
-        w_stability: float = 0.1,
-        w_oscillation: float = 0.5,
-        w_survival: float = 0.1,  # NEW: Reward for each timestep survived
-        settling_threshold: float = 0.05,  # 5% of commanded rate
+        w_stability: float = 0.3,  # Increased - reward staying upright
+        w_oscillation: float = 0.1,  # Reduced - don't over-penalize oscillation early
+        w_survival: float = 1.0,   # Big survival bonus - staying alive is priority
+        settling_threshold: float = 0.1,  # Relaxed from 0.05
     ):
         """Initialize reward function.
 
@@ -40,9 +40,10 @@ class RateTrackingReward:
         self.w_survival = w_survival
         self.settling_threshold = settling_threshold
 
-        # For oscillation detection
+        # For oscillation detection (pre-allocated buffers for hot-path)
         self.prev_errors = np.zeros(3)
         self.sign_changes = np.zeros(3)
+        self._errors_buf = np.zeros(3)
 
     def compute(
         self,
@@ -82,23 +83,29 @@ class RateTrackingReward:
         control_change = np.sum(action_diff[:3]**2)  # Only surfaces, not throttle
         r_smoothness = -self.w_smoothness * control_change
 
-        # 3. Stability bonus (reward staying in safe envelope)
-        # Penalize excessive attitudes and low airspeed
-        safe_roll = abs(roll) < np.radians(60)
-        safe_pitch = abs(pitch) < np.radians(30)
-        safe_airspeed = airspeed > 12.0  # Above stall speed
-        safe_altitude = altitude > 30.0   # Safe margin above ground
+        # 3. Stability bonus (continuous reward for staying in safe envelope)
+        # Use smooth functions instead of binary thresholds
+        # Roll stability: max reward at 0, decreases as roll increases
+        roll_stability = np.exp(-abs(roll) / np.radians(45))  # Gaussian-like decay
+        # Pitch stability: max at 0, decreases as pitch deviates
+        pitch_stability = np.exp(-abs(pitch) / np.radians(30))
+        # Airspeed stability: reward being above stall
+        airspeed_stability = np.clip((airspeed - 8.0) / 12.0, 0, 1)  # 0 at 8m/s, 1 at 20m/s
+        # Altitude stability
+        altitude_stability = np.clip((altitude - 10.0) / 90.0, 0, 1)  # 0 at 10m, 1 at 100m
 
         stability_score = (
-            safe_roll + safe_pitch + safe_airspeed + safe_altitude
+            roll_stability + pitch_stability + airspeed_stability + altitude_stability
         ) / 4.0
         r_stability = self.w_stability * stability_score
 
         # 4. Oscillation penalty (detect sign changes in error)
-        errors = np.array([p_error, q_error, r_error])
+        self._errors_buf[0] = p_error
+        self._errors_buf[1] = q_error
+        self._errors_buf[2] = r_error
 
         # Detect sign changes (indicates oscillation around setpoint)
-        sign_changes = (np.sign(errors) != np.sign(self.prev_errors)) & (
+        sign_changes = (np.sign(self._errors_buf) != np.sign(self.prev_errors)) & (
             np.abs(self.prev_errors) > 0.01
         )
         self.sign_changes = 0.9 * self.sign_changes + sign_changes.astype(float)
@@ -107,7 +114,7 @@ class RateTrackingReward:
         oscillation_penalty = np.sum(self.sign_changes)
         r_oscillation = -self.w_oscillation * oscillation_penalty
 
-        self.prev_errors = errors
+        np.copyto(self.prev_errors, self._errors_buf)
 
         # 5. Survival bonus (NEW: reward for staying alive)
         # This prevents the exploit where agent crashes early to minimize negative reward

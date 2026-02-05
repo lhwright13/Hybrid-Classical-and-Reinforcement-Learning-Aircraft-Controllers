@@ -3,7 +3,6 @@
 import logging
 import numpy as np
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -153,23 +152,28 @@ class LearnedRateAgent(BaseAgent):
         q_cmd = np.clip(command.pitch_rate, -self.max_pitch_rate, self.max_pitch_rate)
         r_cmd = np.clip(command.yaw_rate, -self.max_yaw_rate, self.max_yaw_rate)
 
-        # Build observation vector
+        # Fill observation buffer in-place (avoids per-call np.array allocation)
         # [p, q, r, p_cmd, q_cmd, r_cmd, p_err, q_err, r_err,
         #  airspeed, altitude, roll, pitch, yaw,
         #  prev_aileron, prev_elevator, prev_rudder, prev_throttle]
-        p_err = p_cmd - state.p
-        q_err = q_cmd - state.q
-        r_err = r_cmd - state.r
-
-        self.obs = np.array([
-            state.p, state.q, state.r,
-            p_cmd, q_cmd, r_cmd,
-            p_err, q_err, r_err,
-            state.airspeed, state.altitude,
-            state.roll, state.pitch, state.yaw,
-            self.prev_action[0], self.prev_action[1],
-            self.prev_action[2], self.prev_action[3],
-        ], dtype=np.float32)
+        self.obs[0] = state.p
+        self.obs[1] = state.q
+        self.obs[2] = state.r
+        self.obs[3] = p_cmd
+        self.obs[4] = q_cmd
+        self.obs[5] = r_cmd
+        self.obs[6] = p_cmd - state.p
+        self.obs[7] = q_cmd - state.q
+        self.obs[8] = r_cmd - state.r
+        self.obs[9] = state.airspeed
+        self.obs[10] = state.altitude
+        self.obs[11] = state.roll
+        self.obs[12] = state.pitch
+        self.obs[13] = state.yaw
+        self.obs[14] = self.prev_action[0]
+        self.obs[15] = self.prev_action[1]
+        self.obs[16] = self.prev_action[2]
+        self.obs[17] = self.prev_action[3]
 
         # Get action from model
         try:
@@ -260,11 +264,11 @@ class LearnedRateAgent(BaseAgent):
         # Reset LSTM state
         self.lstm_state = None
 
-        # Reset previous action
-        self.prev_action = np.array([0.0, 0.0, 0.0, 0.5])
+        # Reset previous action in-place
+        self.prev_action[:] = [0.0, 0.0, 0.0, 0.5]
 
-        # Reset observation
-        self.obs = np.zeros(18, dtype=np.float32)
+        # Reset observation in-place
+        self.obs.fill(0.0)
 
         # Reset PID fallback if used
         if self._pid_fallback is not None:

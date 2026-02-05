@@ -52,9 +52,6 @@ class HSAAgent(BaseAgent):
             hsa_cfg = HSAConfig()
             tecs_cfg = TECSConfig()
 
-        # Last commanded yaw for rate limiting
-        self.last_yaw_cmd = None
-
         # HSA controllers (simple PIDs in Python - not performance critical)
         # Heading controller
         heading_config = acb.PIDConfig()
@@ -108,6 +105,8 @@ class HSAAgent(BaseAgent):
         self.baseline_throttle = tecs_cfg.baseline_throttle
         self.load_factor_gain = tecs_cfg.load_factor_gain
         self.max_pitch_command = tecs_cfg.max_pitch_command
+        # Cache the pitch clamp in radians (used every compute_action call)
+        self._max_pitch_cmd_rad = np.radians(10.0)
 
     def get_control_level(self) -> ControlMode:
         """Return control level.
@@ -177,13 +176,13 @@ class HSAAgent(BaseAgent):
         # Specific energy (energy per unit mass)
         E_specific = g * h + 0.5 * V**2  # J/kg
         E_specific_cmd = g * h_cmd + 0.5 * V_cmd**2  # J/kg
-        E_specific_error = E_specific_cmd - E_specific  # J/kg
+        _E_specific_error = E_specific_cmd - E_specific  # J/kg (for debugging)
 
         # Energy distribution (balance between altitude and speed)
         # Positive when we prioritize altitude, negative when we prioritize speed
         E_balance = g * h - 0.5 * V**2  # J/kg
         E_balance_cmd = g * h_cmd - 0.5 * V_cmd**2  # J/kg
-        E_balance_error = E_balance_cmd - E_balance  # J/kg
+        _E_balance_error = E_balance_cmd - E_balance  # J/kg (for debugging)
 
         # === Total Energy Control → Throttle ===
         # Throttle adds/removes energy from the system
@@ -210,8 +209,7 @@ class HSAAgent(BaseAgent):
 
         # Limit pitch angle to prevent excessive pitch during turns
         # Use tighter limit (10 deg) than TECS output (15 deg) for stability
-        max_pitch_cmd = np.radians(10.0)
-        pitch_angle = np.clip(pitch_angle, -max_pitch_cmd, max_pitch_cmd)
+        pitch_angle = np.clip(pitch_angle, -self._max_pitch_cmd_rad, self._max_pitch_cmd_rad)
 
         # === Turn Coordination ===
         # Track current yaw - let bank handle the turn
@@ -238,7 +236,6 @@ class HSAAgent(BaseAgent):
         self.energy_pid.reset()
         self.balance_pid.reset()
         self.attitude_agent.reset()
-        self.last_yaw_cmd = None
 
     def __repr__(self) -> str:
         """String representation."""

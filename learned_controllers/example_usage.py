@@ -10,7 +10,7 @@ sys.path.insert(0, str(project_root))
 
 import numpy as np
 from learned_controllers.envs.rate_env import RateControlEnv
-from learned_controllers.data.generators import RateCommandGenerator, FlightEnvelopesampler
+from learned_controllers.data.generators import RateCommandGenerator, FlightEnvelopeSampler
 
 
 def example_1_manual_environment_interaction():
@@ -88,7 +88,7 @@ def example_3_flight_envelope_sampling():
     print("Example 3: Flight Envelope Sampling")
     print("="*60)
 
-    sampler = FlightEnvelopesampler(rng_seed=42)
+    sampler = FlightEnvelopeSampler(rng_seed=42)
 
     print("\n--- Sampled Initial Conditions ---")
     for i in range(5):

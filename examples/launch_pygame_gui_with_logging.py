@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import GUI and visualization
 from gui.flight_gui_pygame_v2 import FlightControlGUI
-from controllers.types import AircraftState
 
 
 class GUIWithLogging:

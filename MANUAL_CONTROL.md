@@ -171,7 +171,7 @@ python examples/01_hello_controls.py  # Rate control
 python examples/02_rl_vs_pid_demo.py
 
 # Waypoint mission
-python examples/waypoint_mission.py
+python examples/03_waypoint_square_demo.py
 ```
 
 ---
@@ -398,7 +398,7 @@ Waypoint → Guidance → HSA → Attitude → Rate PID → Surfaces
 
 **Demo**:
 ```bash
-python examples/waypoint_mission.py  # See full waypoint mission
+python examples/03_waypoint_square_demo.py  # See full waypoint mission
 ```
 
 ---

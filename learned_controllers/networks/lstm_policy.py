@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from gymnasium import spaces
-from typing import Tuple
 
 
 class LSTMFeaturesExtractor(BaseFeaturesExtractor):

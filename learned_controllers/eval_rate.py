@@ -11,7 +11,6 @@ sys.path.insert(0, str(project_root))
 import argparse
 import numpy as np
 from typing import List
-import yaml
 
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
@@ -19,7 +18,7 @@ from stable_baselines3 import PPO
 from learned_controllers.envs.rate_env import RateControlEnv
 from learned_controllers.eval.metrics import MetricsCalculator, compare_metrics, RateControlMetrics
 from controllers.rate_agent import RateAgent
-from controllers.types import ControlCommand, ControlMode, AircraftState
+from controllers.types import ControlCommand, ControlMode
 from controllers.config import load_config_from_yaml as load_controller_config
 
 

@@ -170,13 +170,13 @@ class Simplified6DOF:
         self.params = params or AircraftParams()
 
         # State: [position(3), velocity(3), attitude(3), angular_rate(3)]
-        self.state = np.zeros(12)
+        self._state = np.zeros(12)
 
         # Control inputs
-        self.controls = ControlSurfaces()
+        self._controls = ControlSurfaces()
 
         # Time
-        self.time = 0.0
+        self._time = 0.0
 
         # Pre-computed radian conversions (params don't change during simulation)
         self._max_pitch_rad = np.radians(self.params.max_pitch_angle)
@@ -192,24 +192,24 @@ class Simplified6DOF:
         Args:
             initial_state: Initial state. If None, uses default (level flight at 100m).
         """
-        self.time = 0.0
+        self._time = 0.0
 
         if initial_state is None:
             # Default: level flight at 100m altitude, 20 m/s airspeed
-            self.state = np.array([
+            self._state = np.array([
                 0.0, 0.0, -100.0,  # position (NED)
                 20.0, 0.0, 0.0,    # velocity (body frame)
                 0.0, 0.0, 0.0,     # attitude (roll, pitch, yaw)
                 0.0, 0.0, 0.0      # angular rates
             ])
         else:
-            self.state = np.concatenate([
+            self._state = np.concatenate([
                 initial_state.position,
                 initial_state.velocity,
                 initial_state.attitude,
                 initial_state.angular_rate
             ])
-            self.time = initial_state.time
+            self._time = initial_state.time
 
     def set_controls(self, controls: ControlSurfaces) -> None:
         """Set control surface deflections.
@@ -218,7 +218,7 @@ class Simplified6DOF:
             controls: Control surface commands (normalized -1 to 1, throttle 0 to 1)
         """
         # Clamp control inputs to valid ranges to prevent unrealistic deflections
-        self.controls = ControlSurfaces(
+        self._controls = ControlSurfaces(
             elevator=np.clip(controls.elevator, -1.0, 1.0),
             aileron=np.clip(controls.aileron, -1.0, 1.0),
             rudder=np.clip(controls.rudder, -1.0, 1.0),
@@ -245,50 +245,50 @@ class Simplified6DOF:
             )
 
         # RK4 integration for better accuracy
-        k1 = self._dynamics(self.state, self.controls)
-        k2 = self._dynamics(self.state + 0.5 * dt * k1, self.controls)
-        k3 = self._dynamics(self.state + 0.5 * dt * k2, self.controls)
-        k4 = self._dynamics(self.state + dt * k3, self.controls)
+        k1 = self._dynamics(self._state, self._controls)
+        k2 = self._dynamics(self._state + 0.5 * dt * k1, self._controls)
+        k3 = self._dynamics(self._state + 0.5 * dt * k2, self._controls)
+        k4 = self._dynamics(self._state + dt * k3, self._controls)
 
-        self.state = self.state + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-        self.time += dt
+        self._state = self._state + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+        self._time += dt
 
         # Clamp state variables to safe ranges
         # Position (NED) - no strict limits but check for NaN
-        self.state[0:3] = np.nan_to_num(self.state[0:3], nan=0.0, posinf=10000.0, neginf=-10000.0)
+        self._state[0:3] = np.nan_to_num(self._state[0:3], nan=0.0, posinf=10000.0, neginf=-10000.0)
 
         # Velocity (body frame) - use configured limits
         max_vel = self.params.max_velocity
-        self.state[3:6] = np.clip(self.state[3:6], -max_vel, max_vel)
+        self._state[3:6] = np.clip(self._state[3:6], -max_vel, max_vel)
 
         # Attitude (Euler angles) - wrap and clamp
         # Roll: wrap to [-π, π]
-        self.state[6] = np.arctan2(np.sin(self.state[6]), np.cos(self.state[6]))
+        self._state[6] = np.arctan2(np.sin(self._state[6]), np.cos(self._state[6]))
         # Pitch: clamp to safe range (avoid gimbal lock)
-        self.state[7] = np.clip(self.state[7], -self._max_pitch_rad, self._max_pitch_rad)
+        self._state[7] = np.clip(self._state[7], -self._max_pitch_rad, self._max_pitch_rad)
         # Yaw: wrap to [-π, π]
-        self.state[8] = np.arctan2(np.sin(self.state[8]), np.cos(self.state[8]))
+        self._state[8] = np.arctan2(np.sin(self._state[8]), np.cos(self._state[8]))
 
         # Angular rates - use configured limits
-        self.state[9:12] = np.clip(self.state[9:12], -self._max_rate_rad, self._max_rate_rad)
+        self._state[9:12] = np.clip(self._state[9:12], -self._max_rate_rad, self._max_rate_rad)
 
         # Ground collision detection
-        altitude = -self.state[2]  # NED: down is positive, altitude is negative of down
+        altitude = -self._state[2]  # NED: down is positive, altitude is negative of down
         if altitude < 0:
             logger.error(
                 f"Ground collision detected! Altitude: {altitude:.2f}m, "
-                f"Time: {self.time:.2f}s - Resetting to ground level"
+                f"Time: {self._time:.2f}s - Resetting to ground level"
             )
-            self.state[2] = 0.0  # Reset to ground level (down = 0)
-            self.state[5] = max(0.0, self.state[5])  # Zero or reverse vertical velocity (w)
+            self._state[2] = 0.0  # Reset to ground level (down = 0)
+            self._state[5] = max(0.0, self._state[5])  # Zero or reverse vertical velocity (w)
 
         # Final NaN check
-        if not np.all(np.isfinite(self.state)):
+        if not np.all(np.isfinite(self._state)):
             logger.error(
-                f"Non-finite state detected at t={self.time:.2f}s, "
+                f"Non-finite state detected at t={self._time:.2f}s, "
                 f"resetting to safe values"
             )
-            self.state = np.nan_to_num(self.state, nan=0.0, posinf=0.0, neginf=0.0)
+            self._state = np.nan_to_num(self._state, nan=0.0, posinf=0.0, neginf=0.0)
 
         return self.get_state()
 
@@ -298,10 +298,10 @@ class Simplified6DOF:
         Returns:
             Current aircraft state
         """
-        position = self.state[0:3]
-        velocity = self.state[3:6]
-        attitude = self.state[6:9]
-        angular_rate = self.state[9:12]
+        position = self._state[0:3]
+        velocity = self._state[3:6]
+        attitude = self._state[6:9]
+        angular_rate = self._state[9:12]
 
         # Compute airspeed (magnitude of velocity in body frame)
         airspeed = np.linalg.norm(velocity)
@@ -319,7 +319,7 @@ class Simplified6DOF:
         ground_speed = np.linalg.norm(velocity_ned[:2])
 
         return AircraftState(
-            time=self.time,
+            time=self._time,
             position=position,
             velocity=velocity,
             attitude=attitude,
@@ -341,7 +341,6 @@ class Simplified6DOF:
             State derivative d(state)/dt
         """
         # Unpack state
-        position = state[0:3]
         velocity = state[3:6]  # Body frame: [u, v, w]
         attitude = state[6:9]  # Euler angles: [roll, pitch, yaw]
         angular_rate = state[9:12]  # Body rates: [p, q, r]
@@ -350,21 +349,30 @@ class Simplified6DOF:
         phi, theta, psi = attitude
         p, q, r = angular_rate
 
+        # Pre-compute trig values used throughout (each computed once)
+        sin_phi = np.sin(phi)
+        cos_phi = np.cos(phi)
+        sin_theta = np.sin(theta)
+        cos_theta = np.cos(theta)
+        sin_psi = np.sin(psi)
+        cos_psi = np.cos(psi)
+
         # === Forces and Moments ===
 
         # Airspeed and angles
         airspeed = np.linalg.norm(velocity)
-        # Use consistent minimum airspeed for all calculations
         safe_airspeed = max(airspeed, self.params.min_airspeed_aero)
 
-        # Angle of attack (use safe minimum for u to handle near-vertical flight)
-        # This prevents discontinuity when u ≈ 0
+        # Angle of attack
         min_u = self.params.min_u_velocity
         u_safe = max(abs(u), min_u) * np.sign(u) if abs(u) > 1e-6 else min_u
         alpha = np.arctan2(w, u_safe)
         alpha = np.clip(alpha, -self._max_alpha_rad, self._max_alpha_rad)
 
-        # Sideslip angle (not actively used in current model, but calculated for completeness)
+        sin_alpha = np.sin(alpha)
+        cos_alpha = np.cos(alpha)
+
+        # Sideslip angle
         beta = np.arcsin(np.clip(v / safe_airspeed, -1, 1))
 
         # Dynamic pressure
@@ -372,101 +380,97 @@ class Simplified6DOF:
 
         # === Aerodynamic forces (body frame) ===
 
-        # Lift coefficient (affected by alpha and elevator)
         elevator_rad = controls.elevator * self._max_elevator_rad
-        cl = self.params.cl_0 + self.params.cl_alpha * alpha + \
-             self.params.cl_elevator * elevator_rad
+        cl = (self.params.cl_0 + self.params.cl_alpha * alpha
+              + self.params.cl_elevator * elevator_rad)
 
-        # Drag coefficient
         cd = self.params.cd_0 + self.params.cd_alpha2 * alpha**2
 
-        # Side force coefficient (affected by rudder)
         rudder_rad = controls.rudder * self._max_rudder_rad
         cy = self.params.cy_rudder * rudder_rad
 
-        # Aerodynamic forces
-        lift = q_dyn * self.params.wing_area * cl
-        drag = q_dyn * self.params.wing_area * cd
-        side_force = q_dyn * self.params.wing_area * cy
+        q_S = q_dyn * self.params.wing_area
+        lift = q_S * cl
+        drag = q_S * cd
+        side_force = q_S * cy
 
-        # Transform to body frame (simplified - assuming small angles)
-        fx_aero = -drag * np.cos(alpha) + lift * np.sin(alpha)
+        fx_aero = -drag * cos_alpha + lift * sin_alpha
         fy_aero = side_force
-        fz_aero = -drag * np.sin(alpha) - lift * np.cos(alpha)
+        fz_aero = -drag * sin_alpha - lift * cos_alpha
 
         # === Thrust ===
-        # Propeller thrust model: linear decay from static thrust to zero
-        # T = T_max * (1 - V/V_max) for V < V_max, else 0
-        # This matches real propeller behavior where thrust decreases with airspeed
         V_max = self.params.thrust_zero_velocity
         thrust_factor = max(0.0, 1.0 - airspeed / V_max)
         thrust = self.params.max_thrust * controls.throttle * thrust_factor
-        fx_thrust = thrust
-        fy_thrust = 0.0
-        fz_thrust = 0.0
 
         # === Gravity (transform to body frame) ===
-        # Gravity acceleration components in body frame (m/s²)
         g = self.params.gravity
-        ax_grav = -g * np.sin(theta)
-        ay_grav = g * np.cos(theta) * np.sin(phi)
-        az_grav = g * np.cos(theta) * np.cos(phi)
-
-        # Total force (body frame) - F = ma, so F_grav = m * a_grav
         mass = self.params.mass
-        fx = fx_aero + fx_thrust + ax_grav * mass
-        fy = fy_aero + fy_thrust + ay_grav * mass
-        fz = fz_aero + fz_thrust + az_grav * mass
+        fx = fx_aero + thrust + (-g * sin_theta) * mass
+        fy = fy_aero + (g * cos_theta * sin_phi) * mass
+        fz = fz_aero + (g * cos_theta * cos_phi) * mass
 
         # === Moments (body frame) ===
 
         aileron_rad = controls.aileron * self._max_aileron_rad
+        half_span_over_V = self.params.wing_span / (2 * safe_airspeed)
+        half_chord_over_V = self.params.chord / (2 * safe_airspeed)
 
         # Roll moment (aileron + damping + dihedral effect)
-        l_moment = q_dyn * self.params.wing_area * self.params.wing_span * \
-                   (self.params.cl_aileron * aileron_rad + \
-                    self.params.damping_roll * p * self.params.wing_span / (2 * safe_airspeed) + \
-                    self.params.cl_beta * beta)
+        l_moment = q_S * self.params.wing_span * (
+            self.params.cl_aileron * aileron_rad
+            + self.params.damping_roll * p * half_span_over_V
+            + self.params.cl_beta * beta)
 
         # Pitch moment (elevator + damping + static stability)
-        # cm_alpha provides static pitch stability - nose-down moment when alpha increases
-        m_moment = q_dyn * self.params.wing_area * self.params.chord * \
-                   (self.params.cm_elevator * elevator_rad + \
-                    self.params.cm_alpha * alpha + \
-                    self.params.damping_pitch * q * self.params.chord / (2 * safe_airspeed))
+        m_moment = q_S * self.params.chord * (
+            self.params.cm_elevator * elevator_rad
+            + self.params.cm_alpha * alpha
+            + self.params.damping_pitch * q * half_chord_over_V)
 
         # Yaw moment (rudder + damping + weathercock stability)
-        n_moment = q_dyn * self.params.wing_area * self.params.wing_span * \
-                   (self.params.cn_rudder * rudder_rad + \
-                    self.params.damping_yaw * r * self.params.wing_span / (2 * safe_airspeed) + \
-                    self.params.cn_beta * beta)
+        n_moment = q_S * self.params.wing_span * (
+            self.params.cn_rudder * rudder_rad
+            + self.params.damping_yaw * r * half_span_over_V
+            + self.params.cn_beta * beta)
 
         # === State derivatives ===
 
-        # Position derivative (NED frame) - need to transform velocity from body to NED
-        pos_dot = self._body_to_ned(velocity, attitude)
+        # Position derivative (body to NED) - inline rotation to reuse trig values
+        sin_phi_sin_theta = sin_phi * sin_theta
+        cos_phi_sin_theta = cos_phi * sin_theta
+        pos_dot = np.array([
+            cos_theta * cos_psi * u
+            + (sin_phi_sin_theta * cos_psi - cos_phi * sin_psi) * v
+            + (cos_phi_sin_theta * cos_psi + sin_phi * sin_psi) * w,
+            cos_theta * sin_psi * u
+            + (sin_phi_sin_theta * sin_psi + cos_phi * cos_psi) * v
+            + (cos_phi_sin_theta * sin_psi - sin_phi * cos_psi) * w,
+            -sin_theta * u
+            + sin_phi * cos_theta * v
+            + cos_phi * cos_theta * w
+        ])
 
         # Velocity derivative (body frame)
+        inv_mass = 1.0 / mass
         vel_dot = np.array([
-            fx / self.params.mass - q * w + r * v,
-            fy / self.params.mass - r * u + p * w,
-            fz / self.params.mass - p * v + q * u
+            fx * inv_mass - q * w + r * v,
+            fy * inv_mass - r * u + p * w,
+            fz * inv_mass - p * v + q * u
         ])
 
         # Attitude derivative (Euler angle rates)
-        # Clamp theta to avoid singularity at ±90° (gimbal lock)
         theta_safe = np.clip(theta, -self._max_pitch_rad, self._max_pitch_rad)
-        cos_theta = np.cos(theta_safe)
-        tan_theta = np.tan(theta_safe)
+        cos_theta_safe = np.cos(theta_safe)
+        tan_theta_safe = np.tan(theta_safe)
 
         att_dot = np.array([
-            p + np.sin(phi) * tan_theta * q + np.cos(phi) * tan_theta * r,
-            np.cos(phi) * q - np.sin(phi) * r,
-            (np.sin(phi) * q + np.cos(phi) * r) / cos_theta
+            p + sin_phi * tan_theta_safe * q + cos_phi * tan_theta_safe * r,
+            cos_phi * q - sin_phi * r,
+            (sin_phi * q + cos_phi * r) / cos_theta_safe
         ])
 
         # Angular acceleration (Euler's equations with gyroscopic coupling)
-        # Full equations: ṗ = (L - (Izz-Iyy)qr) / Ixx, etc.
         Ixx = self.params.inertia_xx
         Iyy = self.params.inertia_yy
         Izz = self.params.inertia_zz
@@ -477,13 +481,13 @@ class Simplified6DOF:
             (n_moment - (Iyy - Ixx) * p * q) / Izz
         ])
 
-        # Clamp angular accelerations to prevent numerical explosion
-        max_ang_accel = self.params.max_angular_acceleration
-        rate_dot = np.clip(rate_dot, -max_ang_accel, max_ang_accel)
-
-        # Clamp velocity derivatives
-        max_accel = self.params.max_acceleration
-        vel_dot = np.clip(vel_dot, -max_accel, max_accel)
+        # Clamp derivatives to prevent numerical explosion
+        rate_dot = np.clip(rate_dot,
+                           -self.params.max_angular_acceleration,
+                           self.params.max_angular_acceleration)
+        vel_dot = np.clip(vel_dot,
+                          -self.params.max_acceleration,
+                          self.params.max_acceleration)
 
         # Combine all derivatives
         state_dot = np.concatenate([pos_dot, vel_dot, att_dot, rate_dot])
@@ -491,7 +495,7 @@ class Simplified6DOF:
         # Safety check: Replace NaN/Inf with zeros
         if not np.all(np.isfinite(state_dot)):
             logger.warning(
-                f"Non-finite values in state derivative at t={self.time:.2f}s, "
+                f"Non-finite values in state derivative at t={self._time:.2f}s, "
                 f"clamping to zero"
             )
             state_dot = np.nan_to_num(state_dot, nan=0.0, posinf=0.0, neginf=0.0)

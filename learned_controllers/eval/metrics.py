@@ -1,8 +1,8 @@
 """Evaluation metrics for rate control performance."""
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass, field
+from typing import Dict
+from dataclasses import dataclass
 
 
 @dataclass

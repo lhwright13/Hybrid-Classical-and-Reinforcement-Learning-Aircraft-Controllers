@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable
-import numpy as np
+
 import pandas as pd
 
 from interfaces.aircraft import AircraftInterface

@@ -34,11 +34,14 @@ class RateCommandGenerator:
         self.difficulty = difficulty
         self.rng = np.random.RandomState(rng_seed)
 
+        # Pre-allocate max rates array (used in every command generation method)
+        self._max_rates = np.array([max_roll_rate, max_pitch_rate, max_yaw_rate])
+
         # Difficulty scaling
         self.difficulty_scale = {
-            "easy": 0.3,      # 30% of max rates
-            "medium": 0.6,    # 60% of max rates
-            "hard": 1.0,      # Full rates
+            "easy": 0.3,      # 30% of max rates (~54 deg/s)
+            "medium": 0.5,    # 50% of max rates (~90 deg/s)
+            "hard": 0.7,      # 70% of max rates (~126 deg/s) - achievable
         }[difficulty]
 
     def generate_step_command(
@@ -58,16 +61,10 @@ class RateCommandGenerator:
         command = np.zeros(3)
         active_axes = self.rng.choice(3, size=min(num_axes, 3), replace=False)
 
-        max_rates = np.array([
-            self.max_roll_rate,
-            self.max_pitch_rate,
-            self.max_yaw_rate
-        ])
-
         for axis in active_axes:
             # Random magnitude scaled by difficulty
             magnitude = self.rng.uniform(0.3, 1.0) * self.difficulty_scale
-            command[axis] = self.rng.choice([-1, 1]) * magnitude * max_rates[axis]
+            command[axis] = self.rng.choice([-1, 1]) * magnitude * self._max_rates[axis]
 
         axis_names = ["roll", "pitch", "yaw"]
         desc = f"Step: {', '.join([axis_names[i] for i in active_axes])}"
@@ -88,20 +85,13 @@ class RateCommandGenerator:
         """
         start = np.zeros(3)
 
-        # Random end command
-        max_rates = np.array([
-            self.max_roll_rate,
-            self.max_pitch_rate,
-            self.max_yaw_rate
-        ])
-
         end = np.zeros(3)
         num_axes = self.rng.choice([1, 2, 3])
         active_axes = self.rng.choice(3, size=num_axes, replace=False)
 
         for axis in active_axes:
             magnitude = self.rng.uniform(0.3, 1.0) * self.difficulty_scale
-            end[axis] = self.rng.choice([-1, 1]) * magnitude * max_rates[axis]
+            end[axis] = self.rng.choice([-1, 1]) * magnitude * self._max_rates[axis]
 
         desc = f"Ramp: {duration:.1f}s"
         return start, end, desc
@@ -124,12 +114,6 @@ class RateCommandGenerator:
             # Random frequency between 0.1 and 2 Hz
             frequency = self.rng.uniform(0.1, 2.0)
 
-        max_rates = np.array([
-            self.max_roll_rate,
-            self.max_pitch_rate,
-            self.max_yaw_rate
-        ])
-
         # Random amplitudes
         amplitudes = np.zeros(3)
         num_axes = self.rng.choice([1, 2])  # 1-2 axes for sine
@@ -137,7 +121,7 @@ class RateCommandGenerator:
         active_axes = self.rng.choice(3, size=num_axes, replace=False)
         for axis in active_axes:
             amp = self.rng.uniform(0.3, 1.0) * amplitude_scale * self.difficulty_scale
-            amplitudes[axis] = amp * max_rates[axis]
+            amplitudes[axis] = amp * self._max_rates[axis]
 
         desc = f"Sine: {frequency:.2f} Hz"
         return frequency, amplitudes, desc
@@ -150,17 +134,11 @@ class RateCommandGenerator:
         Returns:
             Tuple of (command [p,q,r], description)
         """
-        max_rates = np.array([
-            self.max_roll_rate,
-            self.max_pitch_rate,
-            self.max_yaw_rate
-        ])
-
         # All axes active
         command = np.zeros(3)
         for axis in range(3):
             magnitude = self.rng.uniform(0.4, 1.0) * self.difficulty_scale
-            command[axis] = self.rng.choice([-1, 1]) * magnitude * max_rates[axis]
+            command[axis] = self.rng.choice([-1, 1]) * magnitude * self._max_rates[axis]
 
         return command, "Multi-axis coupled"
 
@@ -181,16 +159,12 @@ class RateCommandGenerator:
         # Random walk deltas
         delta = self.rng.randn(3) * diffusion * np.sqrt(dt)
 
-        delta *= self.difficulty_scale * np.array([
-            self.max_roll_rate,
-            self.max_pitch_rate,
-            self.max_yaw_rate
-        ])
+        delta *= self.difficulty_scale * self._max_rates
 
         return delta, "Random walk"
 
 
-class FlightEnvelopesampler:
+class FlightEnvelopeSampler:
     """Sample initial conditions across flight envelope."""
 
     def __init__(

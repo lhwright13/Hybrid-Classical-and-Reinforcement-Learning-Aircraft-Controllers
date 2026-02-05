@@ -12,7 +12,7 @@ Follow these examples in order to progressively learn the system:
 graph LR
     A[01_hello_controls] --> B[launch_pygame_gui]
     B --> C[02_rl_vs_pid_demo]
-    C --> D[waypoint_mission]
+    C --> D[03_waypoint_square_demo]
     D --> E[tune_pids]
     E --> F[Advanced Examples]
 
@@ -132,7 +132,7 @@ python examples/launch_pygame_gui.py
 
 ## Intermediate Examples
 
-### 4. `waypoint_mission.py` - Autonomous Navigation
+### 4. `03_waypoint_square_demo.py` - Autonomous Navigation
 
 **What it does**: Commands aircraft through 4 waypoints in a rectangular pattern using the full 5-level control hierarchy
 
@@ -150,7 +150,7 @@ python examples/launch_pygame_gui.py
 **Run time**: 2-3 minutes
 
 ```bash
-python examples/waypoint_mission.py
+python examples/03_waypoint_square_demo.py
 ```
 
 **Control flow**:
@@ -285,7 +285,7 @@ python examples/plot_telemetry_live.py --log flight_log.h5
 | **01_hello_controls** | ⭐ Beginner | 5 sec | No | Rate control, plotting |
 | **02_rl_vs_pid_demo** | ⭐⭐ Beginner | 1 min | No | RL vs PID, metrics |
 | **launch_pygame_gui** | ⭐⭐ Intermediate | Interactive | Yes | GUI, mode switching |
-| **waypoint_mission** | ⭐⭐⭐ Intermediate | 2-3 min | No | Full hierarchy, navigation |
+| **03_waypoint_square_demo** | ⭐⭐⭐ Intermediate | 2-3 min | No | Full hierarchy, navigation |
 | **tune_pids** | ⭐⭐⭐ Intermediate | 5-20 min | Yes | PID tuning, configs |
 | **launch_pygame_gui_with_learned_rate** | ⭐⭐⭐⭐ Advanced | Interactive | Yes | RL integration, hybrid control |
 | **multi_aircraft_demo** | ⭐⭐⭐⭐ Advanced | 2-3 min | No | Multi-aircraft, logging |
@@ -351,7 +351,7 @@ print(f"Settling time: {settling_time:.2f}s, Overshoot: {overshoot:.1%}")
 
 **4. Change waypoints**:
 ```python
-# In waypoint_mission.py
+# In 03_waypoint_square_demo.py
 waypoints = [
     Waypoint.from_altitude(0, 0, 100),     # Start
     Waypoint.from_altitude(500, 0, 150),   # North
@@ -493,7 +493,7 @@ Have a cool example to share? We'd love to include it!
 4. Test on clean environment
 5. Submit PR with example + documentation
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+Open an issue or pull request on GitHub.
 
 ---
 

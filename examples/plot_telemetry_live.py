@@ -280,7 +280,8 @@ class LiveTelemetryPlotter:
         print("GUI detected! Starting plots...")
 
         # Start animation (updates every 100ms)
-        ani = animation.FuncAnimation(
+        # Note: Must keep reference to prevent garbage collection
+        _ani = animation.FuncAnimation(
             self.fig, self.update, interval=100, cache_frame_data=False
         )
 

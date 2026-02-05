@@ -1,0 +1,93 @@
+# Overnight Training Configuration - Extended training with flight logging
+# Estimated time: 6-8 hours for 3M steps
+
+# Environment settings
+environment:
+  difficulty: "easy"  # Start easy, progress via curriculum
+  episode_length: 10.0  # seconds
+  dt: 0.02  # 50 Hz control rate
+  command_type: "step"
+
+# Training settings - 3M total steps
+training:
+  total_timesteps: 3000000  # 3M steps
+  n_envs: 4  # Parallel environments
+  eval_freq: 25000  # Evaluate every 25k steps
+  save_freq: 100000  # Save checkpoint every 100k steps
+  log_interval: 10  # Log every 10 episodes
+
+# Curriculum learning phases - 3M total
+curriculum:
+  enabled: true
+  phases:
+    - name: "easy"
+      difficulty: "easy"
+      timesteps: 800000  # 800k - learn basics
+      command_type: "step"
+
+    - name: "medium"
+      difficulty: "medium"
+      timesteps: 1000000  # 1M - increase difficulty
+      command_type: "step"
+
+    - name: "hard_step"
+      difficulty: "hard"
+      timesteps: 600000  # 600k - aggressive commands
+      command_type: "step"
+
+    - name: "hard_random"
+      difficulty: "hard"
+      timesteps: 600000  # 600k - random walk (hardest)
+      command_type: "random"
+
+# PPO Hyperparameters
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: null
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  use_sde: false
+  sde_sample_freq: -1
+
+# LSTM Architecture
+lstm:
+  enabled: true
+  lstm_hidden_size: 256
+  n_lstm_layers: 2
+  features_dim: 128
+
+# MLP Architecture (if lstm disabled)
+mlp:
+  net_arch: [256, 128, 64]
+
+# Normalization
+normalize:
+  obs: false
+  reward: false
+
+# Model paths
+paths:
+  model_save_dir: "learned_controllers/models/checkpoints"
+  tensorboard_log: "learned_controllers/logs/tensorboard"
+  best_model_path: "learned_controllers/models/overnight_best"
+
+# Evaluation
+evaluation:
+  n_eval_episodes: 10
+  deterministic: true
+  render: false
+
+# Flight logging - log every 50 episodes for playback
+flight_logging:
+  enabled: true
+  log_every_n_episodes: 50  # Log 1 in 50 episodes
+
+# Random seed
+seed: 42

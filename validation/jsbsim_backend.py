@@ -100,7 +100,6 @@ class JSBSimBackend(AircraftInterface):
         """
         # First, try to find JSBSim package installation
         try:
-            import jsbsim
             import site
 
             # Check site-packages for jsbsim directory

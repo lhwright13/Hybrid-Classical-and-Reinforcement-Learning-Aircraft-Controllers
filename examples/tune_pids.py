@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from simulation import SimulationAircraftBackend
 from controllers import (
-    ControlCommand, ControlMode, AircraftState, Waypoint,
-    ControllerConfig, PIDGains, WaypointAgent, MissionPlanner
+    ControlCommand, ControlMode, AircraftState,
+    ControllerConfig, PIDGains,
 )
 
 
@@ -117,7 +117,6 @@ def test_altitude_hold(config, duration=30.0):
     max_pitch = 0
 
     for step in range(num_steps):
-        t = step * dt
         state = backend.get_state()
 
         # Compute control

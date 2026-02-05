@@ -1,0 +1,80 @@
+# Fast MLP Training Configuration
+# Target: ~30-45 minutes for 1M steps
+
+# Environment settings
+environment:
+  difficulty: "medium"  # Start at medium, skip easy
+  episode_length: 10.0
+  dt: 0.02  # 50 Hz control rate
+  command_type: "step"
+
+# Training settings - 1M steps with more parallelism
+training:
+  total_timesteps: 1000000  # 1M steps (down from 3M)
+  n_envs: 8  # 8 parallel environments (up from 4)
+  eval_freq: 50000  # Evaluate every 50k steps
+  save_freq: 200000  # Save checkpoint every 200k steps
+  log_interval: 10
+
+# No curriculum - just train on medium then hard
+curriculum:
+  enabled: true
+  phases:
+    - name: "medium"
+      difficulty: "medium"
+      timesteps: 500000  # 500k on medium
+      command_type: "step"
+
+    - name: "hard"
+      difficulty: "hard"
+      timesteps: 500000  # 500k on hard
+      command_type: "step"  # Skip random walk - too hard
+
+# PPO Hyperparameters - tuned for faster learning
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 1024  # Smaller rollout buffer (was 2048)
+  batch_size: 256  # Larger batches (was 64)
+  n_epochs: 5  # Fewer epochs (was 10)
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: null
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  use_sde: false
+  sde_sample_freq: -1
+
+# LSTM disabled - use MLP for speed
+lstm:
+  enabled: false
+
+# MLP Architecture - simple and fast
+mlp:
+  net_arch: [128, 128]  # Smaller network
+
+# Normalization
+normalize:
+  obs: false
+  reward: false
+
+# Model paths
+paths:
+  model_save_dir: "learned_controllers/models/checkpoints"
+  tensorboard_log: "learned_controllers/logs/tensorboard"
+  best_model_path: "learned_controllers/models/fast_best"
+
+# Evaluation
+evaluation:
+  n_eval_episodes: 5  # Fewer eval episodes
+  deterministic: true
+  render: false
+
+# Flight logging - less frequent
+flight_logging:
+  enabled: true
+  log_every_n_episodes: 100  # Log 1 in 100 episodes
+
+# Random seed
+seed: 42

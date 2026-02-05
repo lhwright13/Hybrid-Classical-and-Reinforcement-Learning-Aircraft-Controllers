@@ -5,37 +5,24 @@ This is a modified version of train_rate.py that includes automatic
 flight trajectory logging to the TensorBoard Flight plugin.
 """
 
-import os
 import sys
-import yaml
 import argparse
 from pathlib import Path
-from typing import Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import numpy as np
-import gymnasium as gym
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 
-from learned_controllers.envs.rate_env import RateControlEnv
 from learned_controllers.networks.lstm_policy import LSTMPolicy, SimpleMLPPolicy
-from learned_controllers.utils.training_utils import make_env, create_vec_env, create_callbacks
+from learned_controllers.utils.training_utils import create_vec_env, create_callbacks, load_config
 
 # Import TensorBoard Flight plugin
 sys.path.insert(0, str(project_root / "tensorboard_flight_plugin" / "src"))
 from tensorboard_flight import FlightLogger
-from tensorboard_flight.callbacks import FlightLoggerCallback
-
-
-def load_config(config_path: str = "learned_controllers/config/ppo_lstm.yaml") -> dict:
-    """Load training configuration from YAML file."""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
 
 
 def train_phase(
@@ -98,6 +85,12 @@ def main():
         dest="flight_viz",
         help="Disable flight trajectory visualization",
     )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Path to checkpoint to resume training from",
+    )
     args = parser.parse_args()
 
     # Load configuration
@@ -151,28 +144,39 @@ def main():
     # PPO hyperparameters
     ppo_config = config["ppo"]
 
-    # Create model
-    print(f"Creating {model_class.__name__} model...")
-    model = model_class(
-        policy_name,
-        env,
-        learning_rate=ppo_config["learning_rate"],
-        n_steps=ppo_config["n_steps"],
-        batch_size=ppo_config["batch_size"],
-        n_epochs=ppo_config["n_epochs"],
-        gamma=ppo_config["gamma"],
-        gae_lambda=ppo_config["gae_lambda"],
-        clip_range=ppo_config["clip_range"],
-        clip_range_vf=ppo_config["clip_range_vf"],
-        ent_coef=ppo_config["ent_coef"],
-        vf_coef=ppo_config["vf_coef"],
-        max_grad_norm=ppo_config["max_grad_norm"],
-        use_sde=ppo_config["use_sde"],
-        policy_kwargs=policy_kwargs,
-        tensorboard_log=config["paths"]["tensorboard_log"],
-        verbose=1,
-        seed=seed,
-    )
+    # Create or load model
+    if args.resume:
+        print(f"Resuming from checkpoint: {args.resume}")
+        model = model_class.load(
+            args.resume,
+            env=env,
+            tensorboard_log=config["paths"]["tensorboard_log"],
+        )
+        # Update learning rate and other params from config
+        model.learning_rate = ppo_config["learning_rate"]
+        model.ent_coef = ppo_config["ent_coef"]
+    else:
+        print(f"Creating {model_class.__name__} model...")
+        model = model_class(
+            policy_name,
+            env,
+            learning_rate=ppo_config["learning_rate"],
+            n_steps=ppo_config["n_steps"],
+            batch_size=ppo_config["batch_size"],
+            n_epochs=ppo_config["n_epochs"],
+            gamma=ppo_config["gamma"],
+            gae_lambda=ppo_config["gae_lambda"],
+            clip_range=ppo_config["clip_range"],
+            clip_range_vf=ppo_config["clip_range_vf"],
+            ent_coef=ppo_config["ent_coef"],
+            vf_coef=ppo_config["vf_coef"],
+            max_grad_norm=ppo_config["max_grad_norm"],
+            use_sde=ppo_config["use_sde"],
+            policy_kwargs=policy_kwargs,
+            tensorboard_log=config["paths"]["tensorboard_log"],
+            verbose=1,
+            seed=seed,
+        )
 
     # Curriculum learning
     if config["curriculum"]["enabled"]:
@@ -180,7 +184,27 @@ def main():
         print("CURRICULUM LEARNING ENABLED")
         print("="*60)
 
+        # Calculate starting point for resume
+        start_steps = model.num_timesteps if args.resume else 0
+        cumulative_steps = 0
+
         for phase in config["curriculum"]["phases"]:
+            phase_end = cumulative_steps + phase["timesteps"]
+
+            # Skip completed phases when resuming
+            if start_steps >= phase_end:
+                print(f"\nSkipping completed phase: {phase['name']} (ends at {phase_end} steps)")
+                cumulative_steps = phase_end
+                continue
+
+            # Calculate remaining steps for this phase
+            if start_steps > cumulative_steps:
+                remaining = phase_end - start_steps
+                print(f"\nResuming phase: {phase['name']} with {remaining} steps remaining")
+            else:
+                remaining = phase["timesteps"]
+
+            cumulative_steps = phase_end
             # Update environment config for phase
             config["environment"]["difficulty"] = phase["difficulty"]
             config["environment"]["command_type"] = phase["command_type"]
@@ -204,7 +228,7 @@ def main():
                 env,
                 eval_env,
                 callbacks,
-                phase["timesteps"],
+                remaining,
             )
 
     else:
@@ -228,6 +252,10 @@ def main():
     # Cleanup
     env.close()
     eval_env.close()
+
+    # Close flight logger (writes final data)
+    if flight_logger:
+        flight_logger.close()
 
     print("\n" + "="*60)
     print("TRAINING COMPLETE!")

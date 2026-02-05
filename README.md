@@ -1,15 +1,15 @@
 # Multi-Level Flight Control with Hybrid Classical and Reinforcement Learning Controllers
 
-[![Tests](https://img.shields.io/badge/tests-132%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-130%20passing-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Code](https://img.shields.io/badge/code-~24k%20lines-orange)](.)
 
-A research platform for comparing classical PID and reinforcement learning control strategies across multiple levels of a cascaded flight control hierarchy. This project implements a **5-level control abstraction** enabling systematic study of where and when learned controllers outperform classical approaches. This repo also impliments a light and simplified 6dof aircraft simulation.
+This is a hobby project. The goal is to write every aspect of simulation and flight controller from scratch. This project provides a platform for comparing classical PID and reinforcement learning control strategies across multiple levels of a cascaded flight control hierarchy. This project implements a **5-level control abstraction** enabling systematic study of where and when learned controllers outperform classical approaches. This repo also implements a light and simplified 6dof aircraft simulation.
 
 ---
 
-## Research Contributions
+## Project
 
 1. **Multi-Level Learning Framework**: Train RL agents at any of 5 control abstraction levels (waypoint, HSA, attitude, rate, surface) with level-specific observation spaces, action spaces, and reward functions
 
@@ -23,52 +23,59 @@ A research platform for comparing classical PID and reinforcement learning contr
 
 ---
 
-## Quick Results Preview
-
-> **Learned Rate Controller vs Classical PID** (Level 4: Rate Control)
->
-> | Metric | RL (PPO+LSTM) | Classical PID | Winner |
-> |--------|---------------|---------------|--------|
-> | Settling Time | **0.15s** | 1.5s | RL (90% faster) |
-> | Overshoot | 8% | **0%** | PID (zero overshoot) |
-> | Steady-State Error | 0.02°/s | **0.001°/s** | PID (more accurate) |
-> | Control Smoothness | Moderate | **High** | PID (smoother) |
-> | Adaptability | **High** | Low | RL (learns non-intuitive strategies) |
->
-> *Conclusion: RL excels at fast response, PID excels at precision and smoothness*
-
-<!-- TODO: Add comparison plots and GIFs here -->
-
----
-
 ## System Architecture
 
 ### 5-Level Cascaded Control Hierarchy
 
-```mermaid
-graph TB
-    Agent[Agent: Classical/RL/Hybrid] -->|Chooses Level| L1
+![Architecture Diagram](docs/assets/architecture_diagram.png)
 
-    subgraph "Control Hierarchy"
-        L1[Level 1: Waypoint<br/>Navigation] -->|HSA Commands| L2[Level 2: HSA<br/>Heading/Speed/Altitude]
-        L2 -->|Angle Commands| L3[Level 3: Attitude<br/>Outer Loop - Angle Mode]
-        L3 -->|Rate Commands| L4[Level 4: Rate Control<br/>Inner Loop - C++ PID]
-        L4 -->|Surface Deflections| L5[Level 5: Surface Control<br/>Direct Actuation]
-    end
+Agents can operate at ANY level, enabling systematic comparison of where learned controllers outperform classical approaches, sample efficiency vs control quality tradeoffs, and transfer learning between abstraction levels.
 
-    L5 -->|Control Surfaces| Sim[6-DOF Physics<br/>Simplified/JSBSim]
-    Sim -->|State Feedback| Agent
+---
 
-    Sim -->|Telemetry| Viz[Visualization<br/>3D + Plots + Logging]
+## Results
 
-    style L4 fill:#66f,color:#fff
-    style Agent fill:#f96,color:#fff
-```
+All development, tuning, and RL training was done on a **MacBook Pro (CPU only, no GPU)**. The PID controllers were hand-tuned to achieve >90% tracking accuracy across all 5 control levels. The RL rate controller was trained with PPO (25M steps, ~8 hours) using curriculum learning (easy-to-hard) and behavior cloning pretraining from PID demonstrations. On the rate tracking task, the learned controller outperforms PID by a wide margin:
 
-**Key Innovation**: Agents can operate at ANY level, enabling systematic comparison of:
-- Which control levels benefit most from learning
-- Sample efficiency vs control quality tradeoffs
-- Transfer learning between abstraction levels
+| Difficulty | RL Mean Reward | PID Mean Reward | RL Survival | PID Survival |
+|:----------:|:--------------:|:---------------:|:-----------:|:------------:|
+| Easy       | +305           | -960            | 7.4s avg    | 6.1s avg     |
+| Medium     | +308           | -546            | 7.9s avg    | 3.2s avg     |
+| Hard       | +197           | -186            | 6.7s avg    | 1.3s avg     |
+
+The simulation runs at ~1,000 steps/sec per environment, enabling rapid iteration even without a GPU.
+
+### Rate Controller (Level 4) - Step Response
+
+The inner-loop rate controller tracks a 30 deg/s roll rate command with fast settling and minimal cross-coupling:
+
+![Rate Step Response](docs/assets/rate_step_response.png)
+
+### Attitude Controller (Level 3) - Cascaded PID
+
+The outer-loop attitude controller tracks multi-axis angle commands through a sequence of maneuvers:
+
+![Attitude Tracking](docs/assets/attitude_tracking.png)
+
+### Waypoint Navigation (Level 1) - Full Hierarchy
+
+Autonomous navigation through a square waypoint pattern using all 5 control levels:
+
+![Waypoint Navigation](docs/assets/waypoint_trajectory_2d.png)
+
+### Interactive Flight GUI
+
+Real-time Pygame dashboard with drag-and-drop joystick, artificial horizon, 3D aircraft view, and full telemetry. Supports all 5 control modes with live switching:
+
+| Rate Mode | Attitude Mode | Surface Mode |
+|:---------:|:------------:|:------------:|
+| ![Rate](docs/assets/gui_rate_mode.png) | ![Attitude](docs/assets/gui_attitude_mode.png) | ![Surface](docs/assets/gui_surface_mode.png) |
+
+### TensorBoard Flight Visualization Plugin
+
+Custom TensorBoard plugin for 3D flight trajectory visualization, telemetry analysis, and multi-agent comparison. Built with Three.js - see the [submodule repo](https://github.com/lhwright13/TensorBoard-Flight-Analysis) for details.
+
+![Flight Visualization Demo](docs/assets/flight_demo.gif)
 
 ---
 
@@ -115,10 +122,6 @@ graph TB
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/controls.git
-cd controls
-
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -179,9 +182,6 @@ For detailed setup instructions, see [QUICKSTART.md](QUICKSTART.md).
 - [RL Training](design_docs/06_RL_AGENT_TRAINING.md) - Learning infrastructure and curriculum
 - [Full Documentation Index](design_docs/README.md)
 
-### Development
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Development setup and guidelines
-
 ---
 
 ## Examples & Demos
@@ -190,7 +190,7 @@ See [examples/README.md](examples/README.md) for detailed explanations. Recommen
 
 1. **`examples/01_hello_controls.py`** - Simplest rate controller demo (30 lines)
 2. **`examples/02_rl_vs_pid_demo.py`** - RL vs PID comparison with metrics
-3. **`examples/waypoint_mission.py`** - Autonomous waypoint navigation
+3. **`examples/03_waypoint_square_demo.py`** - Autonomous waypoint navigation
 4. **`examples/launch_pygame_gui.py`** - Interactive flight with live controller switching
 5. **`examples/tune_pids.py`** - Systematic PID gain tuning
 
@@ -276,7 +276,7 @@ controls/
 │
 ├── design_docs/               # 14 comprehensive design documents
 ├── examples/                  # Demonstration scripts
-├── tests/                     # 132 tests (all passing)
+├── tests/                     # 130 tests (all passing)
 └── configs/                   # YAML configurations
 ```
 
@@ -292,7 +292,7 @@ controls/
 | **Visualization** | Matplotlib, PyVista, Pygame, TensorBoard |
 | **Data** | HDF5, Pandas, NumPy, SciPy |
 | **Build** | CMake, setuptools |
-| **Testing** | Pytest (132 tests), pytest-cov |
+| **Testing** | Pytest (130 tests), pytest-cov |
 | **Config** | YAML (controllers, training, visualization) |
 
 ---
@@ -308,7 +308,7 @@ The simplified 6-DOF model is validated against JSBSim:
 
 ### Test Coverage
 ```bash
-# Run all 132 tests
+# Run all 130 tests
 pytest tests/
 
 # With coverage report
@@ -332,19 +332,9 @@ If you use this work in your research, please cite:
   author = {Lucas Wright},
   title = {Multi-Level Flight Control with Hybrid Classical and RL Controllers},
   year = {2025},
-  url = {https://github.com/yourusername/controls}
+  url = {https://github.com/lhwright13/Hybrid-Classical-and-Reinforcement-Learning-Aircraft-Controllers}
 }
 ```
-
----
-
-## Contributing
-
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- Development environment setup
-- Code style guidelines (Black, Flake8, mypy)
-- Testing requirements
-- Pull request process
 
 ---
 

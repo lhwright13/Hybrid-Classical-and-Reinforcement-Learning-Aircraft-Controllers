@@ -1,9 +1,11 @@
 """Multi-aircraft trajectory plotter."""
 
-import numpy as np
 import matplotlib.pyplot as plt
+from collections import deque
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+
+_TRAJ_KEYS = ('north', 'east', 'alt', 'time')
 
 
 class MultiAircraftPlotter:
@@ -20,22 +22,17 @@ class MultiAircraftPlotter:
             window_size: Maximum number of points to store per aircraft
         """
         self.aircraft_ids = aircraft_ids
-        self.window_size = window_size
+        self._window_size = window_size
 
-        # Position history: {aircraft_id: {'north': [], 'east': [], 'alt': []}}
-        self.trajectories: Dict[str, Dict[str, List[float]]] = {}
+        self._trajectories: Dict[str, Dict[str, deque]] = {}
         for aid in aircraft_ids:
-            self.trajectories[aid] = {
-                'north': [],
-                'east': [],
-                'alt': [],
-                'time': []
-            }
+            self._trajectories[aid] = self._make_trajectory()
 
-        self.waypoints: List[Any] = []
+        self._waypoints: List[Any] = []
+        self._colors = plt.cm.tab10.colors
 
-        # Colors for different aircraft
-        self.colors = plt.cm.tab10.colors
+    def _make_trajectory(self) -> Dict[str, deque]:
+        return {key: deque(maxlen=self._window_size) for key in _TRAJ_KEYS}
 
     def update(self, aircraft_id: str, state: Any):
         """Update trajectory with new state.
@@ -44,14 +41,11 @@ class MultiAircraftPlotter:
             aircraft_id: Aircraft identifier
             state: AircraftState object
         """
-        if aircraft_id not in self.trajectories:
-            self.trajectories[aircraft_id] = {
-                'north': [], 'east': [], 'alt': [], 'time': []
-            }
+        if aircraft_id not in self._trajectories:
+            self._trajectories[aircraft_id] = self._make_trajectory()
 
-        traj = self.trajectories[aircraft_id]
+        traj = self._trajectories[aircraft_id]
 
-        # Extract position (NED frame)
         north = state.position[0] if hasattr(state, 'position') else state.north
         east = state.position[1] if hasattr(state, 'position') else state.east
         alt = state.altitude if hasattr(state, 'altitude') else -state.position[2]
@@ -61,18 +55,13 @@ class MultiAircraftPlotter:
         traj['alt'].append(alt)
         traj['time'].append(state.time)
 
-        # Trim to window size
-        if len(traj['north']) > self.window_size:
-            for key in traj:
-                traj[key] = traj[key][-self.window_size:]
-
     def set_waypoints(self, waypoints: List[Any]):
         """Set waypoints to display on plot.
 
         Args:
             waypoints: List of Waypoint objects
         """
-        self.waypoints = waypoints
+        self._waypoints = waypoints
 
     def plot(self, show: bool = True) -> plt.Figure:
         """Generate trajectory plot.
@@ -85,28 +74,24 @@ class MultiAircraftPlotter:
         """
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-        # Plot 1: Top-down view (North vs East)
         ax1 = axes[0]
-        for i, (aid, traj) in enumerate(self.trajectories.items()):
+        for i, (aid, traj) in enumerate(self._trajectories.items()):
             if traj['north']:
-                color = self.colors[i % len(self.colors)]
-                ax1.plot(traj['east'], traj['north'], '-', color=color,
+                color = self._colors[i % len(self._colors)]
+                ax1.plot(list(traj['east']), list(traj['north']), '-', color=color,
                         linewidth=2, label=f'Aircraft {aid}', alpha=0.8)
-                # Mark start and end
                 ax1.plot(traj['east'][0], traj['north'][0], 'o',
                         color=color, markersize=10)
                 ax1.plot(traj['east'][-1], traj['north'][-1], 's',
                         color=color, markersize=10)
 
-        # Plot waypoints
-        if self.waypoints:
-            wp_north = [wp.north for wp in self.waypoints]
-            wp_east = [wp.east for wp in self.waypoints]
+        if self._waypoints:
+            wp_north = [wp.north for wp in self._waypoints]
+            wp_east = [wp.east for wp in self._waypoints]
             ax1.plot(wp_east, wp_north, 'r--', linewidth=1, alpha=0.5, label='Planned')
             ax1.scatter(wp_east, wp_north, c='red', s=100, marker='x',
                        linewidths=2, zorder=5)
-            # Label waypoints
-            for i, wp in enumerate(self.waypoints):
+            for i, wp in enumerate(self._waypoints):
                 ax1.annotate(f'WP{i+1}', (wp.east, wp.north),
                            textcoords='offset points', xytext=(5, 5),
                            fontsize=8, color='red')
@@ -118,12 +103,11 @@ class MultiAircraftPlotter:
         ax1.grid(True, alpha=0.3)
         ax1.set_aspect('equal')
 
-        # Plot 2: Altitude over time
         ax2 = axes[1]
-        for i, (aid, traj) in enumerate(self.trajectories.items()):
+        for i, (aid, traj) in enumerate(self._trajectories.items()):
             if traj['time']:
-                color = self.colors[i % len(self.colors)]
-                ax2.plot(traj['time'], traj['alt'], '-', color=color,
+                color = self._colors[i % len(self._colors)]
+                ax2.plot(list(traj['time']), list(traj['alt']), '-', color=color,
                         linewidth=2, label=f'Aircraft {aid}')
 
         ax2.set_xlabel('Time (s)', fontsize=12)
@@ -159,10 +143,8 @@ class MultiAircraftPlotter:
             aircraft_id: Specific aircraft to clear, or None for all
         """
         if aircraft_id:
-            if aircraft_id in self.trajectories:
-                for key in self.trajectories[aircraft_id]:
-                    self.trajectories[aircraft_id][key] = []
+            if aircraft_id in self._trajectories:
+                self._trajectories[aircraft_id] = self._make_trajectory()
         else:
-            for aid in self.trajectories:
-                for key in self.trajectories[aid]:
-                    self.trajectories[aid][key] = []
+            for aid in self._trajectories:
+                self._trajectories[aid] = self._make_trajectory()

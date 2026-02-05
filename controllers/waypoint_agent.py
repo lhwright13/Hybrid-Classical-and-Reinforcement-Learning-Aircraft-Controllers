@@ -63,6 +63,9 @@ class WaypointAgent(BaseAgent):
         # Proportional navigation constant (for PN guidance) - from guidance config
         self.N = self.guidance.pn_gain
 
+        # Pre-allocated error buffer to avoid per-call np.array allocation
+        self._error_buf = np.zeros(3)
+
         # Heading command smoothing (disabled for waypoint navigation)
         self.last_heading_cmd = None
         self.max_heading_rate = None  # No rate limiting - allow sharp turns at waypoints
@@ -106,16 +109,12 @@ class WaypointAgent(BaseAgent):
 
         waypoint = command.waypoint
 
-        # Position error vector (NED frame)
-        error = np.array([
-            waypoint.north - state.north,
-            waypoint.east - state.east,
-            waypoint.down - state.down
-        ])
+        # Position error vector (NED frame) - uses pre-allocated buffer
+        error = self._compute_error(state, waypoint)
 
         # Distance to waypoint
         horizontal_distance = np.linalg.norm(error[:2])  # Horizontal only
-        distance_3d = np.linalg.norm(error)
+        _distance_3d = np.linalg.norm(error)  # Available for 3D guidance
 
         # === Guidance Algorithm ===
         if self.guidance_type == 'LOS':
@@ -242,6 +241,17 @@ class WaypointAgent(BaseAgent):
 
         return surfaces
 
+    def _compute_error(self, state: AircraftState, waypoint: Waypoint) -> np.ndarray:
+        """Compute position error vector into pre-allocated buffer.
+
+        Returns:
+            Reference to internal error buffer (do not store long-term)
+        """
+        self._error_buf[0] = waypoint.north - state.north
+        self._error_buf[1] = waypoint.east - state.east
+        self._error_buf[2] = waypoint.down - state.down
+        return self._error_buf
+
     def reached_waypoint(self, state: AircraftState, waypoint: Waypoint) -> bool:
         """Check if waypoint has been reached.
 
@@ -252,11 +262,7 @@ class WaypointAgent(BaseAgent):
         Returns:
             True if within acceptance radius
         """
-        error = np.array([
-            waypoint.north - state.north,
-            waypoint.east - state.east,
-            waypoint.down - state.down
-        ])
+        error = self._compute_error(state, waypoint)
         distance = np.linalg.norm(error)
         return distance < self.acceptance_radius
 

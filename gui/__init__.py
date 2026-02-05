@@ -1,3 +1,3 @@
-"""Browser-based flight control GUI using Plotly Dash."""
+"""Flight control GUI package."""
 
 __all__ = []

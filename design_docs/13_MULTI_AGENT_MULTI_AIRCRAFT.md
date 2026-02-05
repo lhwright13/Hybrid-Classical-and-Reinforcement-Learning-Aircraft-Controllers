@@ -90,7 +90,7 @@ graph TB
 from typing import List, Dict, Optional
 import numpy as np
 from controllers.types import AircraftState, ControlCommand
-from interfaces.agent import BaseAgent
+from interfaces.agent import RLAgentInterface
 from interfaces.aircraft import AircraftInterface
 
 class MultiAgentCoordinator:
@@ -121,7 +121,7 @@ class MultiAgentCoordinator:
         self.num_agents = config["num_agents"]
 
         # Create agents
-        self.agents: List[BaseAgent] = []
+        self.agents: List[RLAgentInterface] = []
         for agent_config in config["agent_configs"]:
             agent = self._create_agent(agent_config)
             self.agents.append(agent)
@@ -385,7 +385,7 @@ class MultiAgentCoordinator:
 
         return count
 
-    def _create_agent(self, config: dict) -> BaseAgent:
+    def _create_agent(self, config: dict) -> RLAgentInterface:
         """Factory method to create agent from config."""
         from agents.classical_agent import ClassicalAgent
         from agents.rl_agent import RLAgent

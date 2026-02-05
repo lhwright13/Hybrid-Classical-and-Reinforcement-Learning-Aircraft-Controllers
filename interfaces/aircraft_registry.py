@@ -4,7 +4,7 @@ This module provides a registry to track all aircraft, their status,
 and automatically assign visualization properties (colors, markers).
 """
 
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, field
 
@@ -299,18 +299,16 @@ class AircraftRegistry:
         Returns:
             Dictionary with summary info
         """
-        status_counts = {
-            status: len(self.get_aircraft_by_status(status))
-            for status in AircraftStatus
-        }
+        status_counts: Dict[AircraftStatus, int] = {status: 0 for status in AircraftStatus}
+        type_counts: Dict[str, int] = {}
 
-        type_counts = {}
         for info in self._aircraft.values():
+            status_counts[info.status] += 1
             type_counts[info.aircraft_type] = type_counts.get(info.aircraft_type, 0) + 1
 
         return {
             'total': len(self._aircraft),
-            'active': len(self.get_active_aircraft()),
+            'active': status_counts[AircraftStatus.ACTIVE],
             'status_counts': status_counts,
             'type_counts': type_counts,
             'aircraft_ids': list(self._aircraft.keys())

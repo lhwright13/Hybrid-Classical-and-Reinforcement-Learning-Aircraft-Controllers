@@ -44,10 +44,10 @@ class SimulationAircraftBackend(AircraftInterface):
             params = self._get_aircraft_params(aircraft_type)
 
         # Create physics simulator
-        self.physics = Simplified6DOF(params)
+        self._physics = Simplified6DOF(params)
 
         # Physics sub-stepping for numerical stability
-        self.dt_physics = config.get('dt_physics', 0.001)  # 1ms physics step
+        self._dt_physics = config.get('dt_physics', 0.001)  # 1ms physics step
 
         # Current state
         self._state = None
@@ -92,11 +92,11 @@ class SimulationAircraftBackend(AircraftInterface):
             Updated aircraft state
         """
         # Sub-step physics for stability
-        num_substeps = max(1, int(dt / self.dt_physics))
+        num_substeps = max(1, int(dt / self._dt_physics))
         dt_substep = dt / num_substeps
 
         for _ in range(num_substeps):
-            self._state = self.physics.step(dt_substep)
+            self._state = self._physics.step(dt_substep)
 
         return self._state
 
@@ -108,7 +108,7 @@ class SimulationAircraftBackend(AircraftInterface):
                 - All surfaces: -1 to 1 (normalized)
                 - Throttle: 0 to 1
         """
-        self.physics.set_controls(surfaces)
+        self._physics.set_controls(surfaces)
 
     def reset(self, initial_state: Optional[AircraftState] = None) -> AircraftState:
         """Reset simulation to initial state.
@@ -119,8 +119,8 @@ class SimulationAircraftBackend(AircraftInterface):
         Returns:
             Actual initial state after reset
         """
-        self.physics.reset(initial_state)
-        self._state = self.physics.get_state()
+        self._physics.reset(initial_state)
+        self._state = self._physics.get_state()
         return self._state
 
     def get_state(self) -> AircraftState:
@@ -131,7 +131,7 @@ class SimulationAircraftBackend(AircraftInterface):
         """
         if self._state is None:
             # If never initialized, return default state
-            self._state = self.physics.get_state()
+            self._state = self._physics.get_state()
         return self._state
 
     def get_backend_type(self) -> str:
@@ -159,12 +159,12 @@ class SimulationAircraftBackend(AircraftInterface):
         info = super().get_info()
         info.update({
             'physics_engine': 'simplified_6dof',
-            'dt_physics': self.dt_physics,
-            'aircraft_mass': self.physics.params.mass,
-            'max_thrust': self.physics.params.max_thrust,
+            'dt_physics': self._dt_physics,
+            'aircraft_mass': self._physics.params.mass,
+            'max_thrust': self._physics.params.max_thrust,
         })
         return info
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"SimulationAircraftBackend(physics=Simplified6DOF, dt={self.dt_physics})"
+        return f"SimulationAircraftBackend(physics=Simplified6DOF, dt={self._dt_physics})"

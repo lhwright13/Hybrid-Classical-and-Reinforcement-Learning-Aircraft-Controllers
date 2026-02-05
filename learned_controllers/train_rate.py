@@ -1,39 +1,20 @@
 #!/usr/bin/env python3
 """Training script for learned rate controller using PPO + LSTM."""
 
-import os
 import sys
-import yaml
 import argparse
 from pathlib import Path
-from typing import Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import numpy as np
-import gymnasium as gym
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 
-from learned_controllers.envs.rate_env import RateControlEnv
 from learned_controllers.networks.lstm_policy import LSTMPolicy, SimpleMLPPolicy
-from learned_controllers.utils.training_utils import make_env, create_vec_env, create_callbacks
-
-
-def load_config(config_path: str = "learned_controllers/config/ppo_lstm.yaml") -> dict:
-    """Load training configuration from YAML file.
-
-    Args:
-        config_path: Path to config file
-
-    Returns:
-        Configuration dictionary
-    """
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
+from learned_controllers.utils.training_utils import create_vec_env, create_callbacks, load_config
 
 
 def train_phase(

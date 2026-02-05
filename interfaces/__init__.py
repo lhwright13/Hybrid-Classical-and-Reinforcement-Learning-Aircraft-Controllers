@@ -12,13 +12,8 @@ from interfaces.aircraft import AircraftInterface
 from interfaces.sensor import SensorInterface, PerfectSensorInterface, NoisySensorInterface
 from interfaces.aircraft_registry import AircraftRegistry, AircraftStatus, AircraftInfo
 
-# Backwards compatibility alias (deprecated)
-# Use RLAgentInterface for new code
-BaseAgent = RLAgentInterface
-
 __all__ = [
     "RLAgentInterface",
-    "BaseAgent",  # Deprecated alias
     "AircraftInterface",
     "SensorInterface",
     "PerfectSensorInterface",

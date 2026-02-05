@@ -1,0 +1,128 @@
+# Overnight Training V2 - With Imitation Learning
+# Estimated time: 6-7 hours (25M steps at ~1100 FPS)
+# Uses all improvements: imitation learning, relaxed termination, better rewards
+
+# =============================================================================
+# TRAINING APPROACH
+# =============================================================================
+# 1. Collect PID demonstrations (5 min)
+# 2. Behavior cloning pretraining (1 min)
+# 3. RL fine-tuning with curriculum (6-8 hours)
+
+approach:
+  use_imitation: true        # Start with PID demonstrations
+  use_residual: false        # Learn full policy (not corrections to PID)
+  use_curriculum: true       # Progress through difficulties
+
+# =============================================================================
+# DEMONSTRATION COLLECTION
+# =============================================================================
+demonstrations:
+  n_episodes: 500            # Number of PID demo episodes to collect
+  difficulty: "easy"         # Collect demos on easy (PID works best here)
+  save_path: "learned_controllers/data/overnight_demos.pkl"
+
+# =============================================================================
+# BEHAVIOR CLONING
+# =============================================================================
+behavior_cloning:
+  epochs: 20                 # BC pretraining epochs
+  batch_size: 256
+  learning_rate: 0.001
+
+# =============================================================================
+# CURRICULUM PHASES
+# =============================================================================
+# Total: 25M steps over ~6-7 hours at 1000+ FPS
+curriculum:
+  phases:
+    - name: "easy"
+      difficulty: "easy"
+      timesteps: 3000000     # 3M steps - solidify basics
+      command_type: "step"
+
+    - name: "medium"
+      difficulty: "medium"
+      timesteps: 6000000     # 6M steps - main learning phase
+      command_type: "step"
+
+    - name: "hard_step"
+      difficulty: "hard"
+      timesteps: 8000000     # 8M steps - aggressive commands
+      command_type: "step"
+
+    - name: "hard_mixed"
+      difficulty: "hard"
+      timesteps: 8000000     # 8M steps - random walk (hardest)
+      command_type: "random"
+
+# =============================================================================
+# ENVIRONMENT
+# =============================================================================
+environment:
+  episode_length: 10.0       # 10 second episodes
+  dt: 0.02                   # 50 Hz control (matches real hardware)
+
+# =============================================================================
+# PPO HYPERPARAMETERS
+# =============================================================================
+ppo:
+  learning_rate: 0.0003      # Standard PPO learning rate
+  n_steps: 2048              # Steps per rollout (larger = more stable)
+  batch_size: 256            # Minibatch size
+  n_epochs: 10               # Epochs per update
+  gamma: 0.99                # Discount factor
+  gae_lambda: 0.95           # GAE lambda
+  clip_range: 0.2            # PPO clip range
+  ent_coef: 0.01             # Entropy bonus (exploration)
+  vf_coef: 0.5               # Value function coefficient
+  max_grad_norm: 0.5         # Gradient clipping
+
+# =============================================================================
+# NETWORK ARCHITECTURE
+# =============================================================================
+# MLP is faster and works well for this task
+network:
+  type: "mlp"                # "mlp" or "lstm"
+  mlp:
+    net_arch: [256, 256, 128]  # Slightly larger network for overnight
+  lstm:
+    hidden_size: 256
+    n_layers: 2
+
+# =============================================================================
+# PARALLELIZATION
+# =============================================================================
+parallel:
+  n_envs: 8                  # Parallel environments (8 works well on Mac)
+  vec_env_type: "subproc"    # Use subprocess for true parallelism
+
+# =============================================================================
+# EVALUATION & CHECKPOINTING
+# =============================================================================
+evaluation:
+  eval_freq: 100000          # Evaluate every 100k steps
+  n_eval_episodes: 10        # 10 episodes per evaluation
+  deterministic: true
+
+checkpointing:
+  save_freq: 500000          # Save checkpoint every 500k steps
+  keep_last_n: 5             # Keep last 5 checkpoints
+
+# =============================================================================
+# PATHS
+# =============================================================================
+paths:
+  model_dir: "learned_controllers/models/overnight_v2"
+  tensorboard_log: "learned_controllers/logs/overnight_v2"
+  best_model: "learned_controllers/models/overnight_v2/best"
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+logging:
+  log_interval: 10           # Log every 10 episodes
+  verbose: 1
+
+# Random seed for reproducibility
+seed: 42

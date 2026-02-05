@@ -6,7 +6,7 @@ Loads YAML configuration files and converts them to dataclass structures.
 import yaml
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 # Default config directory
 CONFIG_DIR = Path(__file__).parent.parent / "configs"

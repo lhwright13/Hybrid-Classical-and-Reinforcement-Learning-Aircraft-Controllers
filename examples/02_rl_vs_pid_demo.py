@@ -27,7 +27,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -53,12 +53,30 @@ except ImportError:
 def create_config():
     """Create controller configuration.
 
-    Uses default gains from ControllerConfig which are tuned for the
-    stable aircraft model.
+    Loads PID gains from the YAML config file for consistent tuning
+    across all examples.
     """
+    import yaml
+    from controllers.types import PIDGains
+
+    config_path = Path(__file__).parent.parent / "configs" / "controllers" / "default_gains.yaml"
+
+    with open(config_path, 'r') as f:
+        gains_config = yaml.safe_load(f)
+
     config = ControllerConfig()
-    # Use default tuned PID gains from types.py
-    # No need to override - they're already tuned for the stable aircraft model
+    config.roll_rate_gains = PIDGains(**gains_config['roll_rate'])
+    config.pitch_rate_gains = PIDGains(**gains_config['pitch_rate'])
+    config.yaw_gains = PIDGains(**gains_config['yaw_rate'])
+    config.roll_angle_gains = PIDGains(**gains_config['roll_angle'])
+    config.pitch_angle_gains = PIDGains(**gains_config['pitch_angle'])
+    config.max_roll_rate = gains_config['max_roll_rate']
+    config.max_pitch_rate = gains_config['max_pitch_rate']
+    config.max_yaw_rate = gains_config['max_yaw_rate']
+    config.max_roll = gains_config['max_roll']
+    config.max_pitch = gains_config['max_pitch']
+    config.dt = gains_config['dt']
+
     return config
 
 
@@ -393,7 +411,7 @@ def print_summary(results_list: List[Dict]):
 def main():
     parser = argparse.ArgumentParser(description='Compare RL vs PID rate controllers')
     parser.add_argument('--model', type=str,
-                       default='learned_controllers/models/rate_controller_best.zip',
+                       default='learned_controllers/models/overnight_best/best_model.zip',
                        help='Path to trained RL model')
     parser.add_argument('--duration', type=float, default=5.0,
                        help='Test duration in seconds')

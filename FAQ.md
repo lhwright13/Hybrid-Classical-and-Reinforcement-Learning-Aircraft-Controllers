@@ -508,7 +508,7 @@ measured_position = sensor.sense(state)
 
 ### Can I help with hardware integration?
 
-**Yes!** We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md#areas-for-contribution).
+**Yes!** Contributions are welcome - open an issue or pull request on GitHub.
 
 **Prerequisites**:
 - Experience with embedded systems (Teensy/Arduino)
@@ -616,15 +616,15 @@ print(f"Observation: {obs}")
 ```bash
 # Wrong
 cd examples
-python waypoint_mission.py
+python 03_waypoint_square_demo.py
 
 # Correct
 cd /path/to/controls  # Project root
-python examples/waypoint_mission.py
+python examples/03_waypoint_square_demo.py
 ```
 
 ---
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2026-02-04
 
-**Didn't find your question?** Ask in [GitHub Discussions](https://github.com/yourusername/controls/discussions)!
+**Didn't find your question?** Ask in [GitHub Discussions](https://github.com/lhwright13/Hybrid-Classical-and-Reinforcement-Learning-Aircraft-Controllers/discussions)!

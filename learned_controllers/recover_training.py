@@ -121,7 +121,6 @@ def main():
         checkpoint_step, best_reward = find_best_checkpoint()
     else:
         checkpoint_step = args.checkpoint_step
-        best_reward = None
         print(f"\nUsing specified checkpoint: {checkpoint_step} steps")
 
     # Recover checkpoint

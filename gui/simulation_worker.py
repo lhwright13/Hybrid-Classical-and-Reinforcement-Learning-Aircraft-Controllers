@@ -5,13 +5,12 @@ for PID gains configuration.
 """
 
 from typing import Dict, Any, Optional
-from pathlib import Path
 
 from controllers.types import ControlMode
 from controllers import HSAAgent, AttitudeAgent, RateAgent, SurfaceAgent
 
 from gui.base_simulation_worker import (
-    BaseSimulationWorker, FlightCommand, SIMULATION_DT
+    BaseSimulationWorker, FlightCommand
 )
 
 # Re-export FlightCommand for backwards compatibility
@@ -35,20 +34,16 @@ class SimulationWorker(BaseSimulationWorker):
             config_path: Path to controller config YAML
         """
         super().__init__(config_path)
-        self.last_config_mtime = 0.0
+        self._last_config_mtime = 0.0
         self._config_check_counter = 0
 
     def _load_config(self, config_path):
         """Load config and track modification time for hot-reload."""
         config = super()._load_config(config_path)
 
-        # Track file modification time
-        if config_path is None:
-            config_path = Path(__file__).parent.parent / "controllers" / "config" / "pid_gains.yaml"
-        config_path = Path(config_path)
-
-        if config_path.exists():
-            self.last_config_mtime = config_path.stat().st_mtime
+        resolved = self._resolve_config_path(config_path)
+        if resolved.exists():
+            self._last_config_mtime = resolved.stat().st_mtime
 
         return config
 
@@ -56,9 +51,9 @@ class SimulationWorker(BaseSimulationWorker):
         """Create PID agents for all control levels."""
         return {
             ControlMode.SURFACE: SurfaceAgent(),
-            ControlMode.RATE: RateAgent(self.config),
-            ControlMode.ATTITUDE: AttitudeAgent(self.config),
-            ControlMode.HSA: HSAAgent(self.config),
+            ControlMode.RATE: RateAgent(self._config),
+            ControlMode.ATTITUDE: AttitudeAgent(self._config),
+            ControlMode.HSA: HSAAgent(self._config),
         }
 
     def toggle_controller(self):
@@ -77,15 +72,11 @@ class SimulationWorker(BaseSimulationWorker):
 
     def _check_and_reload_config(self):
         """Check if config file changed and reload if needed."""
-        if self.config_path is None:
-            config_path = Path(__file__).parent.parent / "controllers" / "config" / "pid_gains.yaml"
-        else:
-            config_path = Path(self.config_path)
-
-        if config_path.exists():
-            current_mtime = config_path.stat().st_mtime
-            if current_mtime > self.last_config_mtime:
+        resolved = self._resolved_config_path
+        if resolved.exists():
+            current_mtime = resolved.stat().st_mtime
+            if current_mtime > self._last_config_mtime:
                 print("\n Config file changed! Reloading PID gains...")
-                self.config = self._load_config(self.config_path)
-                self.agents = self._create_agents()
+                self._config = self._load_config(self._config_path)
+                self._agents = self._create_agents()
                 print("PID gains updated! New settings active.\n")

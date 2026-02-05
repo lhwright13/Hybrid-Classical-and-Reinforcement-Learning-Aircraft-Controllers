@@ -70,6 +70,11 @@ class AttitudeAgent(BaseAgent):
         self.max_roll = np.radians(config.max_roll)
         self.max_pitch = np.radians(config.max_pitch)
 
+        # Cache rate limits (rad/s) to avoid repeated np.radians calls in compute_action
+        self._max_roll_rate_rad = np.radians(config.max_roll_rate)
+        self._max_pitch_rate_rad = np.radians(config.max_pitch_rate)
+        self._max_yaw_rate_rad = np.radians(config.max_yaw_rate)
+
     def get_control_level(self) -> ControlMode:
         """Return control level.
 
@@ -128,10 +133,10 @@ class AttitudeAgent(BaseAgent):
         # dt is now passed as parameter (default 0.01 for 100 Hz)
         rate_output = self.angle_controller.compute(angle_setpoint, angle_measurement, dt)
 
-        # Limit rate commands using config values (shouldn't exceed these with proper gains)
-        p_cmd = np.clip(rate_output.roll, -np.radians(self.config.max_roll_rate), np.radians(self.config.max_roll_rate))
-        q_cmd = np.clip(rate_output.pitch, -np.radians(self.config.max_pitch_rate), np.radians(self.config.max_pitch_rate))
-        r_cmd = np.clip(rate_output.yaw, -np.radians(self.config.max_yaw_rate), np.radians(self.config.max_yaw_rate))
+        # Limit rate commands using cached values (shouldn't exceed these with proper gains)
+        p_cmd = np.clip(rate_output.roll, -self._max_roll_rate_rad, self._max_roll_rate_rad)
+        q_cmd = np.clip(rate_output.pitch, -self._max_pitch_rate_rad, self._max_pitch_rate_rad)
+        r_cmd = np.clip(rate_output.yaw, -self._max_yaw_rate_rad, self._max_yaw_rate_rad)
 
         # Create rate command for Level 4 (inner loop)
         rate_cmd = ControlCommand(

@@ -22,7 +22,7 @@ Get up and running with the Multi-Level Flight Control platform in under 10 minu
 ## Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/controls.git
+git clone https://github.com/lhwright13/Hybrid-Classical-and-Reinforcement-Learning-Aircraft-Controllers.git
 cd controls
 ```
 
@@ -198,7 +198,7 @@ Plots saved to `outputs/rl_vs_pid_comparison.png`
 Run an autonomous waypoint navigation mission:
 
 ```bash
-python examples/waypoint_mission.py
+python examples/03_waypoint_square_demo.py
 ```
 
 **What it does**:
@@ -339,7 +339,7 @@ graph TB
 - **Documentation**: Check [design_docs/](design_docs/) for detailed architecture
 - **Examples**: All demos in [examples/](examples/) with comments
 - **FAQ**: See [FAQ.md](FAQ.md) for common questions
-- **Issues**: Report bugs at [GitHub Issues](https://github.com/yourusername/controls/issues)
+- **Issues**: Report bugs at [GitHub Issues](https://github.com/lhwright13/Hybrid-Classical-and-Reinforcement-Learning-Aircraft-Controllers/issues)
 
 ---
 

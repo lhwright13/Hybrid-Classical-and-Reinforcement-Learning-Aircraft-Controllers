@@ -10,7 +10,7 @@ from simulation.simulation_backend import SimulationAircraftBackend
 from learned_controllers.envs.rewards import RateTrackingReward, SettlingTimeBonus
 from learned_controllers.data.generators import (
     RateCommandGenerator,
-    FlightEnvelopesampler
+    FlightEnvelopeSampler
 )
 
 
@@ -74,7 +74,7 @@ class RateControlEnv(gym.Env):
             difficulty=difficulty,
             rng_seed=rng_seed
         )
-        self.envelope_sampler = FlightEnvelopesampler(rng_seed=rng_seed)
+        self.envelope_sampler = FlightEnvelopeSampler(rng_seed=rng_seed)
 
         # Reward functions
         self.reward_tracker = RateTrackingReward()
@@ -92,6 +92,16 @@ class RateControlEnv(gym.Env):
         # Command schedule for ramp/sine
         self.command_schedule = None
         self.sine_params = None
+
+        # Pre-allocated buffers for hot-path (avoid per-step allocations)
+        self._obs_buf = np.zeros(18, dtype=np.float32)
+        self._rate_error_buf = np.zeros(3)
+        self._max_rates = np.array([
+            self.cmd_generator.max_roll_rate,
+            self.cmd_generator.max_pitch_rate,
+            self.cmd_generator.max_yaw_rate,
+        ])
+        self._cached_state = None
 
         # Define observation and action spaces
         # Observation: [p, q, r, p_cmd, q_cmd, r_cmd, p_err, q_err, r_err,
@@ -187,6 +197,12 @@ class RateControlEnv(gym.Env):
         self.settle_bonus.reset()
         self.episode_rewards = {k: 0.0 for k in self.episode_rewards}
 
+        # Cache initial state for _get_observation and _get_info
+        self._cached_state = self.sim.get_state()
+        self._rate_error_buf[0] = self.rate_command[0] - self._cached_state.p
+        self._rate_error_buf[1] = self.rate_command[1] - self._cached_state.q
+        self._rate_error_buf[2] = self.rate_command[2] - self._cached_state.r
+
         # Get initial observation
         obs = self._get_observation()
         info = self._get_info()
@@ -219,6 +235,7 @@ class RateControlEnv(gym.Env):
 
         # Step simulation
         state = self.sim.step(self.dt)
+        self._cached_state = state
 
         # Update time
         self.current_time += self.dt
@@ -233,6 +250,11 @@ class RateControlEnv(gym.Env):
         p_err = p_cmd - p
         q_err = q_cmd - q
         r_err = r_cmd - r
+
+        # Cache rate errors for _get_info
+        self._rate_error_buf[0] = p_err
+        self._rate_error_buf[1] = q_err
+        self._rate_error_buf[2] = r_err
 
         # Compute reward
         reward, reward_components = self.reward_tracker.compute(
@@ -337,14 +359,9 @@ class RateControlEnv(gym.Env):
                 # Random walk update
                 delta, _ = self.cmd_generator.generate_random_walk(dt=self.dt)
                 self.rate_command += delta
-                # Clip to limits
-                max_rates = np.array([
-                    self.cmd_generator.max_roll_rate,
-                    self.cmd_generator.max_pitch_rate,
-                    self.cmd_generator.max_yaw_rate,
-                ])
-                self.rate_command = np.clip(
-                    self.rate_command, -max_rates, max_rates
+                np.clip(
+                    self.rate_command, -self._max_rates, self._max_rates,
+                    out=self.rate_command,
                 )
 
         elif self.sine_params is not None:
@@ -360,29 +377,35 @@ class RateControlEnv(gym.Env):
         Returns:
             Observation array
         """
-        state = self.sim.get_state()
+        state = self._cached_state if self._cached_state is not None else self.sim.get_state()
 
+        # Fill pre-allocated buffer instead of creating a new array
+        buf = self._obs_buf
+        # Current rates
+        buf[0] = state.p
+        buf[1] = state.q
+        buf[2] = state.r
+        # Commanded rates
+        buf[3] = self.rate_command[0]
+        buf[4] = self.rate_command[1]
+        buf[5] = self.rate_command[2]
         # Rate errors
-        p_err = self.rate_command[0] - state.p
-        q_err = self.rate_command[1] - state.q
-        r_err = self.rate_command[2] - state.r
+        buf[6] = self.rate_command[0] - state.p
+        buf[7] = self.rate_command[1] - state.q
+        buf[8] = self.rate_command[2] - state.r
+        # Flight state
+        buf[9] = state.airspeed
+        buf[10] = state.altitude
+        buf[11] = state.roll
+        buf[12] = state.pitch
+        buf[13] = state.yaw
+        # Previous action
+        buf[14] = self.prev_action[0]
+        buf[15] = self.prev_action[1]
+        buf[16] = self.prev_action[2]
+        buf[17] = self.prev_action[3]
 
-        obs = np.array([
-            # Current rates
-            state.p, state.q, state.r,
-            # Commanded rates
-            self.rate_command[0], self.rate_command[1], self.rate_command[2],
-            # Rate errors
-            p_err, q_err, r_err,
-            # Flight state
-            state.airspeed, state.altitude,
-            state.roll, state.pitch, state.yaw,
-            # Previous action
-            self.prev_action[0], self.prev_action[1],
-            self.prev_action[2], self.prev_action[3],
-        ], dtype=np.float32)
-
-        return obs
+        return buf
 
     def _get_info(self, reward_components: Optional[Dict] = None) -> Dict[str, Any]:
         """Get info dictionary.
@@ -393,17 +416,14 @@ class RateControlEnv(gym.Env):
         Returns:
             Info dictionary
         """
-        state = self.sim.get_state()
+        state = self._cached_state if self._cached_state is not None else self.sim.get_state()
 
         info = {
             "time": self.current_time,
             "step": self.step_count,
+            "position": state.position.copy(),
             "rate_command": self.rate_command.copy(),
-            "rate_error": np.array([
-                self.rate_command[0] - state.p,
-                self.rate_command[1] - state.q,
-                self.rate_command[2] - state.r,
-            ]),
+            "rate_error": self._rate_error_buf.copy(),
             "airspeed": state.airspeed,
             "altitude": state.altitude,
             "is_settled": self.settle_bonus.is_settled,
@@ -427,14 +447,14 @@ class RateControlEnv(gym.Env):
         if state.altitude < 5.0:
             return True
 
-        # Excessive attitude
-        if abs(state.roll) > np.radians(80):
+        # Excessive attitude - relaxed to give more room to recover
+        if abs(state.roll) > np.radians(120):  # Was 80, now 120 (allow inverted attempts)
             return True
-        if abs(state.pitch) > np.radians(60):
+        if abs(state.pitch) > np.radians(80):  # Was 60, now 80
             return True
 
-        # Stall
-        if state.airspeed < 10.0:
+        # Stall - relaxed slightly
+        if state.airspeed < 8.0:  # Was 10, now 8
             return True
 
         return False

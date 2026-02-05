@@ -9,7 +9,7 @@ the classical controller interface in controllers/base_agent.py:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import numpy as np
 from controllers.types import (
     AircraftState,

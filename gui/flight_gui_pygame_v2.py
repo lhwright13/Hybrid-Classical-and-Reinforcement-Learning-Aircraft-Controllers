@@ -12,16 +12,17 @@ Features:
 - Mode selection (all 5 control levels)
 """
 
-import pygame
-import pygame.gfxdraw
-import sys
+import json
 import math
-import numpy as np
+import sys
 import threading
 import time
-from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from pathlib import Path
+
+import numpy as np
+import pygame
+import pygame.gfxdraw
 
 from gui.simulation_worker import SimulationWorker, FlightCommand
 from controllers.types import ControlMode
@@ -186,6 +187,7 @@ class Joystick:
         self.stick_x = 0.0  # -1 to +1
         self.stick_y = 0.0  # -1 to +1
         self.dragging = False
+        self._label_font = None
 
     def draw(self, surface, font):
         # Outer circle
@@ -203,11 +205,12 @@ class Joystick:
                         (self.center_x, self.center_y + self.radius), 1)
 
         # Labels
-        label_font = pygame.font.Font(None, 20)
-        pitch_up = label_font.render("Pitch +", True, WHITE)
-        pitch_down = label_font.render("Pitch -", True, WHITE)
-        roll_left = label_font.render("Roll -", True, WHITE)
-        roll_right = label_font.render("Roll +", True, WHITE)
+        if self._label_font is None:
+            self._label_font = pygame.font.Font(None, 20)
+        pitch_up = self._label_font.render("Pitch +", True, WHITE)
+        pitch_down = self._label_font.render("Pitch -", True, WHITE)
+        roll_left = self._label_font.render("Roll -", True, WHITE)
+        roll_right = self._label_font.render("Roll +", True, WHITE)
 
         surface.blit(pitch_up, (self.center_x - pitch_up.get_width()//2, self.center_y - self.radius - 25))
         surface.blit(pitch_down, (self.center_x - pitch_down.get_width()//2, self.center_y + self.radius + 10))
@@ -295,6 +298,20 @@ class Aircraft3DView:
         else:
             self._create_default_model()
 
+        # Pre-allocate rotation matrix and projected points buffer
+        self._rotation_matrix = np.empty((3, 3))
+        self._projected = [(0, 0)] * len(self.vertices)
+
+        # Pre-compute axis vectors for drawing (constant)
+        axis_length = 40
+        self._axis_vectors = np.array([
+            [axis_length, 0, 0],
+            [0, axis_length, 0],
+            [0, 0, axis_length],
+        ], dtype=float)
+        self._axis_colors = [RED, GREEN, YELLOW]
+        self._axis_labels = ["X", "Y", "Z"]
+
     def _create_default_model(self):
         """Create simple wireframe aircraft."""
         # Define vertices (X=forward, Y=right, Z=up in aircraft frame)
@@ -321,46 +338,36 @@ class Aircraft3DView:
 
     def draw(self, surface, font, roll_deg, pitch_deg, yaw_deg):
         """Draw 3D aircraft with current orientation."""
-        # Convert to radians
+        # Convert to radians and compute trig once
         roll = np.radians(roll_deg)
         pitch = np.radians(pitch_deg)
         yaw = np.radians(yaw_deg)
+        cr, sr = np.cos(roll), np.sin(roll)
+        cp, sp = np.cos(pitch), np.sin(pitch)
+        cy, sy = np.cos(yaw), np.sin(yaw)
 
-        # Rotation matrices
-        # Roll (around X-axis)
-        Rx = np.array([
-            [1, 0, 0],
-            [0, np.cos(roll), -np.sin(roll)],
-            [0, np.sin(roll), np.cos(roll)]
-        ])
-
-        # Pitch (around Y-axis)
-        Ry = np.array([
-            [np.cos(pitch), 0, np.sin(pitch)],
-            [0, 1, 0],
-            [-np.sin(pitch), 0, np.cos(pitch)]
-        ])
-
-        # Yaw (around Z-axis)
-        Rz = np.array([
-            [np.cos(yaw), -np.sin(yaw), 0],
-            [np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
-        ])
-
-        # Combined rotation (yaw * pitch * roll)
-        R = Rz @ Ry @ Rx
+        # Build combined rotation matrix in-place (yaw * pitch * roll)
+        R = self._rotation_matrix
+        R[0, 0] = cy * cp
+        R[0, 1] = cy * sp * sr - sy * cr
+        R[0, 2] = cy * sp * cr + sy * sr
+        R[1, 0] = sy * cp
+        R[1, 1] = sy * sp * sr + cy * cr
+        R[1, 2] = sy * sp * cr - cy * sr
+        R[2, 0] = -sp
+        R[2, 1] = cp * sr
+        R[2, 2] = cp * cr
 
         # Rotate vertices
         rotated = (R @ self.vertices.T).T
 
-        # Project to 2D (perspective projection)
-        projected = []
-        for v in rotated:
-            # Simple orthographic projection for now
-            x_proj = int(self.center_x + v[1] * self.scale)  # Y -> screen X
-            y_proj = int(self.center_y - v[2] * self.scale)  # Z -> screen Y (inverted)
-            projected.append((x_proj, y_proj))
+        # Project to 2D (orthographic) - reuse buffer
+        projected = self._projected
+        for i, v in enumerate(rotated):
+            projected[i] = (
+                int(self.center_x + v[1] * self.scale),
+                int(self.center_y - v[2] * self.scale),
+            )
 
         # Draw faces/edges
         for face in self.faces:
@@ -372,20 +379,15 @@ class Aircraft3DView:
                     end = projected[face[(i + 1) % len(face)]]
                     pygame.draw.line(surface, CYAN, start, end, 2)
 
-        # Draw axes (optional)
-        axis_length = 40
-        axes = [
-            ([axis_length, 0, 0], RED, "X"),    # Forward (red)
-            ([0, axis_length, 0], GREEN, "Y"),  # Right (green)
-            ([0, 0, axis_length], YELLOW, "Z"), # Up (yellow)
-        ]
-
-        for axis_vec, color, label in axes:
-            rotated_axis = R @ np.array(axis_vec)
-            x_end = int(self.center_x + rotated_axis[1] * self.scale)
-            y_end = int(self.center_y - rotated_axis[2] * self.scale)
-            pygame.draw.line(surface, color, (self.center_x, self.center_y), (x_end, y_end), 2)
-            text = font.render(label, True, color)
+        # Draw axes
+        rotated_axes = (R @ self._axis_vectors.T).T
+        for i in range(3):
+            ra = rotated_axes[i]
+            x_end = int(self.center_x + ra[1] * self.scale)
+            y_end = int(self.center_y - ra[2] * self.scale)
+            pygame.draw.line(surface, self._axis_colors[i],
+                           (self.center_x, self.center_y), (x_end, y_end), 2)
+            text = font.render(self._axis_labels[i], True, self._axis_colors[i])
             surface.blit(text, (x_end, y_end))
 
 
@@ -397,6 +399,9 @@ class ArtificialHorizon:
         self.center_x = x + width // 2
         self.center_y = y + height // 2
         self.pitch_scale = PITCH_SCALE
+        # Pre-allocate the temporary surface used for rotation
+        self._temp_size = int(math.sqrt(width**2 + height**2) * 2)
+        self._temp_surf = None
 
     def draw(self, surface, font, roll_deg, pitch_deg):
         """Draw professional artificial horizon with roll and pitch."""
@@ -404,9 +409,12 @@ class ArtificialHorizon:
         pygame.draw.rect(surface, (30, 30, 30), self.rect)
         pygame.draw.rect(surface, WHITE, self.rect, 3)
 
-        # Create large temporary surface for rotation (must be big enough after rotation)
-        temp_size = int(math.sqrt(self.rect.width**2 + self.rect.height**2) * 2)
-        temp_surf = pygame.Surface((temp_size, temp_size))
+        # Reuse pre-allocated temporary surface for rotation
+        if self._temp_surf is None:
+            self._temp_surf = pygame.Surface((self._temp_size, self._temp_size))
+        temp_surf = self._temp_surf
+        temp_surf.fill((0, 0, 0))
+        temp_size = self._temp_size
         temp_center = temp_size // 2
 
         # Calculate pitch offset (positive pitch = nose up = horizon moves down)
@@ -596,6 +604,7 @@ class FlightControlGUI:
         self.latest_state = None  # AircraftState object for external plotting
         self.show_debug = False  # Toggle with 'D' key
         self.current_command = None  # Track current command for display
+        self._json_write_counter = 0
 
         # Create widgets
         self._create_widgets(aircraft_model_path)
@@ -963,41 +972,41 @@ class FlightControlGUI:
 
         pygame.display.flip()
 
+    _JSON_KEYS = [
+        'time', 'altitude', 'airspeed', 'roll', 'pitch', 'yaw',
+        'roll_rate', 'pitch_rate', 'yaw_rate',
+        'cmd_roll_angle', 'cmd_pitch_angle', 'cmd_yaw_angle',
+        'cmd_roll_rate', 'cmd_pitch_rate', 'cmd_yaw_rate', 'mode',
+    ]
+    _JSON_DEFAULTS = {
+        'time': 0.0, 'altitude': 0.0, 'airspeed': 0.0,
+        'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
+        'roll_rate': 0.0, 'pitch_rate': 0.0, 'yaw_rate': 0.0,
+        'mode': 'SURFACE',
+    }
+    _JSON_WRITE_INTERVAL = 10  # Write every Nth frame
+
     def _update_state(self):
         """Update state from simulation."""
         state = self.sim_worker.get_state()
         if state:
             self.current_state = state
-            # Extract raw AircraftState object for external plotting
             if 'state_object' in state:
                 self.latest_state = state['state_object']
 
-            # Write state to JSON file for external plotting
-            try:
-                import json
-                plot_state = {
-                    'time': state.get('time', 0.0),
-                    'altitude': state.get('altitude', 0.0),
-                    'airspeed': state.get('airspeed', 0.0),
-                    'roll': state.get('roll', 0.0),
-                    'pitch': state.get('pitch', 0.0),
-                    'yaw': state.get('yaw', 0.0),
-                    'roll_rate': state.get('roll_rate', 0.0),
-                    'pitch_rate': state.get('pitch_rate', 0.0),
-                    'yaw_rate': state.get('yaw_rate', 0.0),
-                    # Commanded values (may be None)
-                    'cmd_roll_angle': state.get('cmd_roll_angle'),
-                    'cmd_pitch_angle': state.get('cmd_pitch_angle'),
-                    'cmd_yaw_angle': state.get('cmd_yaw_angle'),
-                    'cmd_roll_rate': state.get('cmd_roll_rate'),
-                    'cmd_pitch_rate': state.get('cmd_pitch_rate'),
-                    'cmd_yaw_rate': state.get('cmd_yaw_rate'),
-                    'mode': state.get('mode', 'SURFACE')
-                }
-                with open('live_state.json', 'w') as f:
-                    json.dump(plot_state, f)
-            except:
-                pass  # Don't let plotting break the GUI
+            # Throttle JSON writes to reduce I/O
+            self._json_write_counter += 1
+            if self._json_write_counter >= self._JSON_WRITE_INTERVAL:
+                self._json_write_counter = 0
+                try:
+                    plot_state = {
+                        k: state.get(k, self._JSON_DEFAULTS.get(k))
+                        for k in self._JSON_KEYS
+                    }
+                    with open('live_state.json', 'w') as f:
+                        json.dump(plot_state, f)
+                except Exception:
+                    pass
 
     def run(self):
         """Main loop."""

@@ -355,8 +355,8 @@ class TestNoisySensorInterface:
 
         assert sensor.get_sensor_type() == "noisy"
         assert not sensor.is_perfect()
-        assert sensor.gyro_noise == 0.02
-        assert sensor.gps_pos_noise == 2.5
+        assert sensor._gyro_noise == 0.02
+        assert sensor._gps_pos_noise == 2.5
 
     def test_adds_noise_to_measurements(self):
         """Noisy sensor adds noise to all measurements."""
@@ -430,8 +430,8 @@ class TestNoisySensorInterface:
         noise_config = {"enabled": True, "seed": 42}
         sensor = NoisySensorInterface(noise_config)
 
-        initial_gyro_bias = sensor.gyro_bias.copy()
-        initial_accel_bias = sensor.accel_bias.copy()
+        initial_gyro_bias = sensor._gyro_bias.copy()
+        initial_accel_bias = sensor._accel_bias.copy()
 
         true_state = AircraftState()
 
@@ -440,8 +440,8 @@ class TestNoisySensorInterface:
             sensor.update(true_state)
 
         # Bias should have drifted (at least one axis should change significantly)
-        gyro_changed = not np.allclose(sensor.gyro_bias, initial_gyro_bias, atol=0.001)
-        accel_changed = not np.allclose(sensor.accel_bias, initial_accel_bias, atol=0.005)
+        gyro_changed = not np.allclose(sensor._gyro_bias, initial_gyro_bias, atol=0.001)
+        accel_changed = not np.allclose(sensor._accel_bias, initial_accel_bias, atol=0.005)
 
         # At least gyro bias should have changed after 100 updates
         assert gyro_changed or accel_changed
@@ -460,8 +460,8 @@ class TestNoisySensorInterface:
         sensor.reset()
 
         # Bias should be zero
-        assert np.allclose(sensor.gyro_bias, np.zeros(3))
-        assert np.allclose(sensor.accel_bias, np.zeros(3))
+        assert np.allclose(sensor._gyro_bias, np.zeros(3))
+        assert np.allclose(sensor._accel_bias, np.zeros(3))
 
     def test_get_noise_parameters(self):
         """get_noise_parameters returns configuration."""
@@ -486,10 +486,10 @@ class TestNoisySensorInterface:
         sensor = NoisySensorInterface(noise_config)
 
         # Check defaults are applied
-        assert sensor.enabled is True  # Default enabled
-        assert sensor.gyro_noise == 0.01  # Default from code
-        assert sensor.gps_pos_noise == 1.0
-        assert sensor.airspeed_noise == 0.5
+        assert sensor._enabled is True  # Default enabled
+        assert sensor._gyro_noise == 0.01  # Default from code
+        assert sensor._gps_pos_noise == 1.0
+        assert sensor._airspeed_noise == 0.5
 
     def test_repr(self):
         """String representation includes sensor type."""
